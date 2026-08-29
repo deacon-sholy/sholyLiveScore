@@ -92,23 +92,28 @@ function setCache(key: string, data: unknown): void {
 // ---------------------------------------------------------------------------
 
 async function fetchJson(url: string, timeoutMs = 8000): Promise<unknown | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const resp = await fetch(url, {
-      // ESPN's anti-bot layer rejects unknown/non-browser User-Agents (e.g.
-      // Deno's default), so we send a plain, widely-accepted one that is known
-      // to return 200.
-      headers: { Accept: 'application/json', 'User-Agent': 'curl/8.7.1' },
-      signal: controller.signal,
-    });
-    if (!resp.ok) return null;
-    return await resp.json();
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
+  const maxAttempts = 3;
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const resp = await fetch(url, {
+        // ESPN's anti-bot layer rejects unknown/non-browser User-Agents (e.g.
+        // Deno's default), so we send a plain, widely-accepted one that is known
+        // to return 200.
+        headers: { Accept: 'application/json', 'User-Agent': 'curl/8.7.1' },
+        signal: controller.signal,
+      });
+      if (resp.ok) return await resp.json();
+      if (attempt < maxAttempts) await sleep(attempt * 250);
+    } catch {
+      if (attempt < maxAttempts) await sleep(attempt * 250);
+    } finally {
+      clearTimeout(timer);
+    }
   }
+  return null;
 }
 
 // Runs `fn` over `items` with at most `limit` concurrent tasks. Individual
