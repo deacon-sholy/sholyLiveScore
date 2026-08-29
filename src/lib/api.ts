@@ -1,14 +1,6 @@
 import type { LeagueWithMatches, Match, MatchEvent } from '../types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-const API_URL = `${SUPABASE_URL}/functions/v1/livescore`;
-
-const headers: Record<string, string> = {
-  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-  'Content-Type': 'application/json',
-};
+const API_URL = import.meta.env.VITE_API_URL ?? '/.netlify/functions/livescore';
 
 interface ApiResponse {
   leagues?: LeagueWithMatches[];
@@ -17,7 +9,7 @@ interface ApiResponse {
 }
 
 export async function fetchMatchesByStatus(statusFilter: 'all' | 'live' | 'finished' | 'scheduled'): Promise<LeagueWithMatches[]> {
-  const response = await fetch(API_URL, { headers });
+  const response = await fetch(API_URL);
   if (!response.ok) {
     throw new Error(`Failed to fetch matches (${response.status})`);
   }
@@ -47,7 +39,7 @@ export async function fetchMatchesByStatus(statusFilter: 'all' | 'live' | 'finis
 
 export async function fetchMatchDetail(leagueSlug: string, eventId: string): Promise<MatchEvent[]> {
   const url = `${API_URL}?league=${leagueSlug}&event=${eventId}`;
-  const response = await fetch(url, { headers });
+  const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to fetch match detail (${response.status})`);
   }
