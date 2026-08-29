@@ -1,23 +1,7 @@
 import { Trophy, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-
-interface StandingTeam {
-  position: number;
-  name: string;
-  played: number;
-  wins: number;
-  draws: number;
-  losses: number;
-  goalsFor: number;
-  goalsAgainst: number;
-  points: number;
-  trend: 'up' | 'down' | 'same';
-}
-
-interface StandingsData {
-  league: string;
-  teams: StandingTeam[];
-}
+import type { StandingsData } from '../types';
+import { fetchStandings } from '../lib/api';
 
 interface StandingsModalProps {
   leagueSlug: string;
@@ -25,68 +9,39 @@ interface StandingsModalProps {
   onClose: () => void;
 }
 
-const LEAGUE_IDS: Record<string, string> = {
-  'eng.1': 'eng.1',
-  'esp.1': 'esp.1',
-  'ita.1': 'ita.1',
-  'ger.1': 'ger.1',
-  'fra.1': 'fra.1',
-  'por.1': 'por.1',
-  'ned.1': 'ned.1',
-  'usa.1': 'usa.1',
-};
-
 export default function StandingsModal({ leagueSlug, leagueName, onClose }: StandingsModalProps) {
   const [data, setData] = useState<StandingsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchStandings() {
+    let cancelled = false;
+
+    async function load() {
       setLoading(true);
       setError(null);
       try {
-        // Use ESPN standings endpoint
-        const espnSlug = LEAGUE_IDS[leagueSlug];
-        if (!espnSlug) throw new Error('Standings not available for this league');
-
-        const resp = await fetch(
-          `https://site.api.espn.com/apis/site/v2/sports/soccer/${espnSlug}/standings`,
-          { headers: { Accept: 'application/json' } }
-        );
-        if (!resp.ok) throw new Error(`Failed (${resp.status})`);
-
-        const json = await resp.json();
-        const children = json?.standings?.entries?.[0]?.standings?.entries;
-        if (!children) throw new Error('No standings data');
-
-        const teams: StandingTeam[] = children.map((entry: any) => {
-          const stats = Object.fromEntries(
-            (entry.stats || []).map((s: any) => [s.name, s.displayValue])
-          );
-          return {
-            position: parseInt(entry.position?.ordinal || entry.position, 10) || 0,
-            name: entry.team?.displayName || entry.team?.name || 'Unknown',
-            played: parseInt(stats.gamesPlayed || stats.played || 0, 10),
-            wins: parseInt(stats.wins || 0, 10),
-            draws: parseInt(stats.ties || stats.draws || 0, 10),
-            losses: parseInt(stats.losses || 0, 10),
-            goalsFor: parseInt(stats.pointsFor || stats.goalsFor || 0, 10),
-            goalsAgainst: parseInt(stats.pointsAgainst || stats.goalsAgainst || 0, 10),
-            points: parseInt(stats.points || 0, 10),
-            trend: 'same',
-          } as StandingTeam;
-        });
-
-        setData({ league: leagueName, teams });
+        const standings = await fetchStandings(leagueSlug);
+        if (cancelled) return;
+        if (!standings || standings.teams.length === 0) {
+          setError('Standings not available for this league');
+          return;
+        }
+        setData(standings);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load standings');
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load standings');
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
-    fetchStandings();
-  }, [leagueSlug, leagueName]);
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [leagueSlug]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">

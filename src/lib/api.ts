@@ -1,59 +1,59 @@
-import type { LeagueWithMatches, Match, MatchEvent } from '../types';
+import type { LeagueWithMatches, MatchEvent, StandingsData } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL ?? '/.netlify/functions/livescore';
 
 interface ApiResponse {
   leagues?: LeagueWithMatches[];
+  standings?: StandingsData | null;
   events?: MatchEvent[];
   error?: string;
 }
 
-export async function fetchMatchesByStatus(statusFilter: 'all' | 'live' | 'finished' | 'scheduled'): Promise<LeagueWithMatches[]> {
-  const response = await fetch(API_URL);
+async function getJson(params: Record<string, string>): Promise<ApiResponse> {
+  const query = new URLSearchParams(params).toString();
+  const response = await fetch(`${API_URL}?${query}`);
   if (!response.ok) {
-    throw new Error(`Failed to fetch matches (${response.status})`);
+    throw new Error(`Request failed (${response.status})`);
   }
-
   const data: ApiResponse = await response.json();
   if (data.error) throw new Error(data.error);
-  if (!data.leagues) return [];
+  return data;
+}
 
-  let leagues = data.leagues;
+function filterByStatus(
+  leagues: LeagueWithMatches[],
+  statusFilter: 'all' | 'live' | 'finished' | 'scheduled',
+): LeagueWithMatches[] {
+  if (statusFilter === 'all') return leagues;
+  return leagues
+    .map((l) => ({ ...l, matches: l.matches.filter((m) => m.status === statusFilter) }))
+    .filter((l) => l.matches.length > 0);
+}
 
-  if (statusFilter === 'live') {
-    leagues = leagues
-      .map((l) => ({ ...l, matches: l.matches.filter((m) => m.status === 'live') }))
-      .filter((l) => l.matches.length > 0);
-  } else if (statusFilter === 'finished') {
-    leagues = leagues
-      .map((l) => ({ ...l, matches: l.matches.filter((m) => m.status === 'finished') }))
-      .filter((l) => l.matches.length > 0);
-  } else if (statusFilter === 'scheduled') {
-    leagues = leagues
-      .map((l) => ({ ...l, matches: l.matches.filter((m) => m.status === 'scheduled') }))
-      .filter((l) => l.matches.length > 0);
-  }
+export async function fetchMatchesByStatus(
+  statusFilter: 'all' | 'live' | 'finished' | 'scheduled',
+  date?: string,
+): Promise<LeagueWithMatches[]> {
+  const params: Record<string, string> = {};
+  if (date) params.date = date;
+  const data = await getJson(params);
+  return filterByStatus(data.leagues ?? [], statusFilter);
+}
 
-  return leagues;
+export async function fetchStandings(leagueSlug: string): Promise<StandingsData | null> {
+  const data = await getJson({ standings: leagueSlug });
+  return data.standings ?? null;
 }
 
 export async function fetchMatchDetail(leagueSlug: string, eventId: string): Promise<MatchEvent[]> {
-  const url = `${API_URL}?league=${leagueSlug}&event=${eventId}`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch match detail (${response.status})`);
-  }
-
-  const data: ApiResponse = await response.json();
-  if (data.error) throw new Error(data.error);
-  return data.events || [];
+  const data = await getJson({ league: leagueSlug, event: eventId });
+  return data.events ?? [];
 }
 
 export function formatKickoff(kickoff: string): string {
   const date = new Date(kickoff);
   const now = new Date();
-  const diffMs = date.getTime() - now.getTime();
-  const diffHrs = diffMs / (1000 * 60 * 60);
+  const diffHrs = (date.getTime() - now.getTime()) / (1000 * 60 * 60);
 
   if (Math.abs(diffHrs) < 24) {
     return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -64,5 +64,3 @@ export function formatKickoff(kickoff: string): string {
 export function sortEventsByMinute(events: MatchEvent[]): MatchEvent[] {
   return [...events].sort((a, b) => a.minute - b.minute);
 }
-
-export type { Match };

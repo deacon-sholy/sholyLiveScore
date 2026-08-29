@@ -4,7 +4,7 @@ import MatchCard from './MatchCard';
 
 interface LeagueSectionProps {
   league: LeagueWithMatches;
-  onMatchClick: (matchId: string, leagueSlug: string) => void;
+  onMatchClick: (matchId: string) => void;
   onStandingsClick: (leagueSlug: string, leagueName: string) => void;
 }
 
@@ -59,7 +59,7 @@ export default function LeagueSection({ league, onMatchClick, onStandingsClick }
       <div className="flex flex-col gap-2.5">
         {league.matches.map((match, idx) => (
           <div key={match.id} style={{ animationDelay: `${idx * 50}ms` }}>
-            <MatchCard match={match} onClick={() => onMatchClick(match.id, match.league_slug)} />
+            <MatchCard match={match} onClick={() => onMatchClick(match.id)} />
           </div>
         ))}
       </div>

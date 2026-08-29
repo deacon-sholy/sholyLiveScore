@@ -44,3 +44,20 @@ export interface LeagueWithMatches {
   slug: string;
   matches: Match[];
 }
+
+export interface StandingTeam {
+  position: number;
+  name: string;
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  points: number;
+}
+
+export interface StandingsData {
+  league: string;
+  teams: StandingTeam[];
+}

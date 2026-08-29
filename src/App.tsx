@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Radio, CheckCircle2, CalendarDays, LayoutGrid, RefreshCw, Zap, Globe, Sun, Moon } from 'lucide-react';
+import { Radio, CheckCircle2, CalendarDays, LayoutGrid, RefreshCw, Zap, Globe, Sun, Moon, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { LeagueWithMatches, Match } from './types';
-import { fetchMatchesByStatus } from './lib/api';
+import { fetchMatchesByStatus, fetchMatchDetail } from './lib/api';
 import LeagueSection from './components/LeagueSection';
 import MatchDetail from './components/MatchDetail';
 import SearchBar from './components/SearchBar';
@@ -18,7 +18,17 @@ const FILTERS: { key: Filter; label: string; icon: typeof Radio }[] = [
   { key: 'scheduled', label: 'Upcoming', icon: CalendarDays },
 ];
 
+function toISODate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 function App() {
+  const todayISO = toISODate(new Date());
+  const [date, setDate] = useState(todayISO);
+  const isToday = date === todayISO;
   const [filter, setFilter] = useState<Filter>('all');
   const [leagues, setLeagues] = useState<LeagueWithMatches[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +47,7 @@ function App() {
     }
     setError(null);
     try {
-      const data = await fetchMatchesByStatus(f);
+      const data = await fetchMatchesByStatus(f, date);
       setLeagues(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load matches');
@@ -45,7 +55,7 @@ function App() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [date]);
 
   useEffect(() => {
     loadMatches(filter);
@@ -53,19 +63,36 @@ function App() {
 
   useEffect(() => {
     if (filter !== 'live' && filter !== 'all') return;
+    if (!isToday) return;
     const interval = setInterval(() => {
       loadMatches(filter, true);
     }, 30000);
     return () => clearInterval(interval);
-  }, [filter, loadMatches]);
+  }, [filter, loadMatches, isToday]);
+
+  const shiftDate = useCallback((delta: number) => {
+    setDate((current) => {
+      const d = new Date(`${current}T12:00:00`);
+      d.setDate(d.getDate() + delta);
+      return toISODate(d);
+    });
+  }, []);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [selectedMatch]);
 
-  const handleMatchClick = (matchId: string, _leagueSlug: string) => {
+  const handleMatchClick = (matchId: string) => {
     const match = leagues.flatMap((l) => l.matches).find((m) => m.id === matchId);
-    if (match) setSelectedMatch(match);
+    if (!match) return;
+    setSelectedMatch(match);
+    fetchMatchDetail(match.league_slug, matchId)
+      .then((events) => {
+        if (events.length > 0) {
+          setSelectedMatch((prev) => (prev && prev.id === matchId ? { ...prev, events } : prev));
+        }
+      })
+      .catch(() => {});
   };
 
   // Filter leagues by search query
@@ -156,6 +183,43 @@ function App() {
           {/* Search */}
           <div className="mt-3">
             <SearchBar value={search} onChange={setSearch} />
+          </div>
+
+          {/* Date navigation */}
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <button
+              onClick={() => shiftDate(-1)}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/5 bg-white/[0.03] text-ink-300 transition-colors hover:border-white/10 hover:bg-white/[0.06] hover:text-ink-100"
+              title="Previous day"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+
+            <div className="flex items-center gap-2">
+              {!isToday && (
+                <button
+                  onClick={() => setDate(todayISO)}
+                  className="rounded-xl border border-accent-500/30 bg-accent-500/10 px-3 py-1.5 text-[11px] font-bold text-accent-400 transition-colors hover:bg-accent-500/20"
+                >
+                  Today
+                </button>
+              )}
+              <span className="text-sm font-bold text-ink-100">
+                {new Date(`${date}T12:00:00`).toLocaleDateString('en-US', {
+                  weekday: 'short',
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </span>
+            </div>
+
+            <button
+              onClick={() => shiftDate(1)}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/5 bg-white/[0.03] text-ink-300 transition-colors hover:border-white/10 hover:bg-white/[0.06] hover:text-ink-100"
+              title="Next day"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
 
           {/* Filter tabs */}
