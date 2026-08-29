@@ -477,6 +477,166 @@ function parseStandings(json: unknown, leagueName: string): StandingsData | null
 }
 
 // ---------------------------------------------------------------------------
+// Match-detail extras: team stats, last-5 form, head-to-head
+// ---------------------------------------------------------------------------
+
+interface EspnSummaryBoxscore {
+  teams?: Array<{
+    team?: EspnTeamRef;
+    statistics?: Array<{ name: string; displayValue?: string }>;
+  }>;
+}
+
+interface EspnSummary {
+  header?: {
+    competitions?: Array<{
+      competitors?: EspnCompetitor[];
+      details?: EspnDetail[];
+    }>;
+  };
+  boxscore?: EspnSummaryBoxscore;
+  lastFiveGames?: Array<{
+    team?: EspnTeamRef;
+    events?: Array<{
+      gameResult?: string;
+      opponent?: string;
+      score?: string;
+      atVs?: string;
+      gameDate?: string;
+    }>;
+  }>;
+  seasonseries?: Array<{
+    title?: string;
+    summary?: string;
+    events?: unknown[];
+  }>;
+}
+
+interface TeamStats {
+  possession: number | null;
+  shots: number | null;
+  shots_on_target: number | null;
+  corners: number | null;
+  fouls: number | null;
+  yellow_cards: number | null;
+  red_cards: number | null;
+  offsides: number | null;
+  saves: number | null;
+  passes: number | null;
+  pass_accuracy: number | null;
+}
+
+interface FormResult {
+  result: string;
+  opponent: string;
+  score: string;
+  atVs: string;
+  date: string;
+}
+
+interface MatchExtras {
+  stats: { home: TeamStats; away: TeamStats } | null;
+  form: { home: FormResult[]; away: FormResult[] } | null;
+  h2h: { title: string; summary: string } | null;
+}
+
+function statNumber(stats: Record<string, string>, key: string): number | null {
+  const raw = stats[key];
+  if (!raw) return null;
+  if (key === 'passPct' && raw !== '') {
+    const n = parseFloat(raw);
+    return Number.isNaN(n) ? null : Math.round(n * 100);
+  }
+  if (key === 'possessionPct') {
+    const n = parseFloat(raw);
+    return Number.isNaN(n) ? null : Math.round(n);
+  }
+  const n = parseInt(raw, 10);
+  return Number.isNaN(n) ? null : n;
+}
+
+function extractMatchExtras(json: EspnSummary): MatchExtras {
+  const stats = extractTeamStats(json);
+  const form = extractForm(json);
+  const h2h = extractH2h(json);
+  return { stats, form, h2h };
+}
+
+function extractTeamStats(json: EspnSummary): MatchExtras['stats'] {
+  const competitors = json.header?.competitions?.[0]?.competitors ?? [];
+  const home = competitors.find((c) => c.homeAway === 'home');
+  const away = competitors.find((c) => c.homeAway === 'away');
+  if (!home || !away) return null;
+
+  const byId = new Map<string, Record<string, string>>();
+  for (const t of json.boxscore?.teams ?? []) {
+    const id = t.team?.id;
+    if (!id) continue;
+    const map: Record<string, string> = {};
+    for (const s of t.statistics ?? []) {
+      if (s.name && s.displayValue !== undefined) map[s.name] = s.displayValue;
+    }
+    byId.set(id, map);
+  }
+
+  const toStats = (teamId: string): TeamStats => {
+    const s = byId.get(teamId) ?? {};
+    return {
+      possession: statNumber(s, 'possessionPct'),
+      shots: statNumber(s, 'totalShots'),
+      shots_on_target: statNumber(s, 'shotsOnTarget'),
+      corners: statNumber(s, 'wonCorners'),
+      fouls: statNumber(s, 'foulsCommitted'),
+      yellow_cards: statNumber(s, 'yellowCards'),
+      red_cards: statNumber(s, 'redCards'),
+      offsides: statNumber(s, 'offsides'),
+      saves: statNumber(s, 'saves'),
+      passes: statNumber(s, 'totalPasses'),
+      pass_accuracy: statNumber(s, 'passPct'),
+    };
+  };
+
+  const homeStats = toStats(home.team?.id ?? '');
+  const awayStats = toStats(away.team?.id ?? '');
+  const hasAny = Object.values(homeStats).some((v) => v !== null) || Object.values(awayStats).some((v) => v !== null);
+  if (!hasAny) return null;
+  return { home: homeStats, away: awayStats };
+}
+
+function extractForm(json: EspnSummary): MatchExtras['form'] {
+  if (!Array.isArray(json.lastFiveGames) || json.lastFiveGames.length === 0) return null;
+  const pick = (teamId: string | undefined): FormResult[] => {
+    const lfg = json.lastFiveGames?.find((g) => g.team?.id === teamId);
+    if (!lfg) return [];
+    return (lfg.events ?? [])
+      .slice(0, 5)
+      .map((e) => ({
+        result: e.gameResult ?? '',
+        opponent: e.opponent ?? '',
+        score: e.score ?? '',
+        atVs: e.atVs ?? '',
+        date: e.gameDate ?? '',
+      }));
+  };
+
+  const homeTeamId = json.header?.competitions?.[0]?.competitors?.find((c) => c.homeAway === 'home')?.team?.id;
+  const awayTeamId = json.header?.competitions?.[0]?.competitors?.find((c) => c.homeAway === 'away')?.team?.id;
+  const home = pick(homeTeamId);
+  const away = pick(awayTeamId);
+  if (home.length === 0 && away.length === 0) return null;
+  return { home, away };
+}
+
+function extractH2h(json: EspnSummary): MatchExtras['h2h'] {
+  const series = (json.seasonseries ?? []).find((s) => s.title || s.summary);
+  if (!series || (!series.summary && !series.title)) return null;
+  return {
+    title: series.title ?? '',
+    summary: series.summary ?? '',
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Request handling
 // ---------------------------------------------------------------------------
 
@@ -519,14 +679,15 @@ export const handler: Handler = async (event: HandlerEvent) => {
       if (cached) return jsonResponse(200, { events: cached });
 
       const json = await fetchJson(`${ESPN_BASE}/${leagueSlug}/summary?event=${eventId}`, 10000);
-      const details = (json as { header?: { competitions?: EspnCompetition[] } })
-        ?.header?.competitions?.[0]?.details ?? [];
+      const summary = json as EspnSummary;
+      const details = summary.header?.competitions?.[0]?.details ?? [];
       const events = details
         .map((d) => mapEvent(d))
         .filter((e): e is MatchEvent => e !== null);
 
       setCache(cacheKey, events);
-      return jsonResponse(200, { events });
+      const extras = extractMatchExtras(summary);
+      return jsonResponse(200, { events, stats: extras.stats, form: extras.form, h2h: extras.h2h });
     }
 
     // GET /livescore?date=YYYY-MM-DD → all leagues' scoreboards for a day

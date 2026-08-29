@@ -34,6 +34,7 @@ export interface Match {
   home_score: number;
   away_score: number;
   events: MatchEvent[];
+  detail?: MatchDetail | null;
 }
 
 export interface LeagueWithMatches {
@@ -60,4 +61,39 @@ export interface StandingTeam {
 export interface StandingsData {
   league: string;
   teams: StandingTeam[];
+}
+
+export interface TeamStats {
+  possession: number | null;
+  shots: number | null;
+  shots_on_target: number | null;
+  corners: number | null;
+  fouls: number | null;
+  yellow_cards: number | null;
+  red_cards: number | null;
+  offsides: number | null;
+  saves: number | null;
+  passes: number | null;
+  pass_accuracy: number | null;
+}
+
+export interface FormResult {
+  result: string;
+  opponent: string;
+  score: string;
+  atVs: string;
+  date: string;
+}
+
+export interface MatchDetailData {
+  events: MatchEvent[];
+  stats?: { home: TeamStats; away: TeamStats } | null;
+  form?: { home: FormResult[]; away: FormResult[] } | null;
+  h2h?: { title: string; summary: string } | null;
+}
+
+export interface MatchDetail {
+  stats?: { home: TeamStats; away: TeamStats } | null;
+  form?: { home: FormResult[]; away: FormResult[] } | null;
+  h2h?: { title: string; summary: string } | null;
 }

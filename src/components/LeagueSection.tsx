@@ -1,14 +1,16 @@
-import { Trophy } from 'lucide-react';
+import { Star, Trophy } from 'lucide-react';
 import type { LeagueWithMatches } from '../types';
 import MatchCard from './MatchCard';
 
 interface LeagueSectionProps {
   league: LeagueWithMatches;
+  favorite: boolean;
+  onToggleFavorite: (slug: string) => void;
   onMatchClick: (matchId: string) => void;
   onStandingsClick: (leagueSlug: string, leagueName: string) => void;
 }
 
-export default function LeagueSection({ league, onMatchClick, onStandingsClick }: LeagueSectionProps) {
+export default function LeagueSection({ league, favorite, onToggleFavorite, onMatchClick, onStandingsClick }: LeagueSectionProps) {
   const liveCount = league.matches.filter((m) => m.status === 'live').length;
   const finishedCount = league.matches.filter((m) => m.status === 'finished').length;
 
@@ -42,6 +44,17 @@ export default function LeagueSection({ league, onMatchClick, onStandingsClick }
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => onToggleFavorite(league.slug)}
+            title={favorite ? 'Remove from My Leagues' : 'Add to My Leagues'}
+            className={`flex h-7 w-7 items-center justify-center rounded-lg border transition-all ${
+              favorite
+                ? 'border-amber-500/40 bg-amber-500/15 text-amber-400'
+                : 'border-white/5 bg-white/[0.03] text-ink-500 hover:border-amber-500/30 hover:bg-amber-500/5 hover:text-amber-400'
+            }`}
+          >
+            <Star className="h-3.5 w-3.5" fill={favorite ? 'currentColor' : 'none'} />
+          </button>
           <button
             onClick={() => onStandingsClick(league.slug, league.name)}
             className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-semibold text-ink-400 transition-all hover:border-accent-500/30 hover:bg-accent-500/5 hover:text-accent-400"

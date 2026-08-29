@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Radio, CheckCircle2, CalendarDays, LayoutGrid, RefreshCw, Zap, Globe, Sun, Moon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { Radio, CheckCircle2, CalendarDays, LayoutGrid, RefreshCw, Zap, Globe, Sun, Moon, ChevronLeft, ChevronRight, Star, Goal } from 'lucide-react';
 import type { LeagueWithMatches, Match } from './types';
 import { fetchMatchesByStatus, fetchMatchDetail } from './lib/api';
 import LeagueSection from './components/LeagueSection';
@@ -8,14 +8,16 @@ import SearchBar from './components/SearchBar';
 import ShareButton from './components/ShareButton';
 import StandingsModal from './components/StandingsModal';
 import { useDarkMode } from './lib/useDarkMode';
+import { useFavorites } from './lib/useFavorites';
 
-type Filter = 'all' | 'live' | 'finished' | 'scheduled';
+type Filter = 'all' | 'live' | 'finished' | 'scheduled' | 'favorites';
 
 const FILTERS: { key: Filter; label: string; icon: typeof Radio }[] = [
   { key: 'all', label: 'All', icon: LayoutGrid },
   { key: 'live', label: 'Live', icon: Radio },
   { key: 'finished', label: 'Finished', icon: CheckCircle2 },
   { key: 'scheduled', label: 'Upcoming', icon: CalendarDays },
+  { key: 'favorites', label: 'My Leagues', icon: Star },
 ];
 
 function toISODate(date: Date): string {
@@ -38,6 +40,9 @@ function App() {
   const [search, setSearch] = useState('');
   const [standingsLeague, setStandingsLeague] = useState<{ slug: string; name: string } | null>(null);
   const { dark, toggle: toggleDark } = useDarkMode();
+  const { favoriteSlugs, toggleFavorite } = useFavorites();
+  const [toasts, setToasts] = useState<Array<{ id: number; text: string }>>([]);
+  const prevGoalKeys = useRef<Set<string> | null>(null);
 
   const loadMatches = useCallback(async (f: Filter, isRefresh = false) => {
     if (isRefresh) {
@@ -47,15 +52,15 @@ function App() {
     }
     setError(null);
     try {
-      const data = await fetchMatchesByStatus(f, date);
-      setLeagues(data);
+      const data = await fetchMatchesByStatus(f === 'favorites' ? 'all' : f, date);
+      setLeagues(f === 'favorites' ? data.filter((l) => favoriteSlugs.includes(l.slug)) : data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load matches');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [date]);
+  }, [date, favoriteSlugs]);
 
   useEffect(() => {
     loadMatches(filter);
@@ -69,6 +74,34 @@ function App() {
     }, 30000);
     return () => clearInterval(interval);
   }, [filter, loadMatches, isToday]);
+
+  // Goal alerts: watch the live feed for new goals and toast them
+  useEffect(() => {
+    const keys = new Set<string>();
+    for (const l of leagues) {
+      for (const m of l.matches) {
+        if (m.status !== 'live' && m.status !== 'halftime') continue;
+        for (const e of m.events) {
+          if (e.type === 'goal') keys.add(`${m.id}:${e.minute}:${String(e.player_name ?? '')}`);
+        }
+      }
+    }
+    if (prevGoalKeys.current !== null) {
+      for (const key of keys) {
+        if (prevGoalKeys.current.has(key)) continue;
+        const [matchId, minute, player] = key.split(':');
+        const match = leagues.flatMap((l) => l.matches).find((mm) => mm.id === matchId);
+        if (!match) continue;
+        const id = Date.now() + Math.random();
+        const text = `${player || 'Goal'} ${minute}' — ${match.home_team.name} ${match.home_score}-${match.away_score} ${match.away_team.name}`;
+        setToasts((prev) => [...prev, { id, text }]);
+        window.setTimeout(() => {
+          setToasts((prev) => prev.filter((t) => t.id !== id));
+        }, 6000);
+      }
+    }
+    prevGoalKeys.current = keys;
+  }, [leagues]);
 
   const shiftDate = useCallback((delta: number) => {
     setDate((current) => {
@@ -87,9 +120,13 @@ function App() {
     if (!match) return;
     setSelectedMatch(match);
     fetchMatchDetail(match.league_slug, matchId)
-      .then((events) => {
-        if (events.length > 0) {
-          setSelectedMatch((prev) => (prev && prev.id === matchId ? { ...prev, events } : prev));
+      .then((detail) => {
+        if (detail.events.length > 0) {
+          setSelectedMatch(
+            (prev) => (prev && prev.id === matchId
+              ? { ...prev, events: detail.events, detail: { stats: detail.stats, form: detail.form, h2h: detail.h2h } }
+              : prev),
+          );
         }
       })
       .catch(() => {});
@@ -276,14 +313,30 @@ function App() {
         ) : filteredLeagues.length === 0 ? (
           <div className="flex min-h-[300px] flex-col items-center justify-center gap-4">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.03]">
-              <CalendarDays className="h-8 w-8 text-ink-600" />
+              {filter === 'favorites' && favoriteSlugs.length === 0 ? (
+                <Star className="h-8 w-8 text-accent-500" />
+              ) : (
+                <CalendarDays className="h-8 w-8 text-ink-600" />
+              )}
             </div>
             <div className="text-center">
               <p className="text-sm font-semibold text-ink-200">
-                {search ? 'No matches match your search' : 'No matches found'}
+                {search
+                  ? 'No matches match your search'
+                  : filter === 'favorites'
+                    ? favoriteSlugs.length === 0
+                      ? 'No favorite leagues yet'
+                      : 'No matches in your favorite leagues'
+                    : 'No matches found'}
               </p>
               <p className="mt-1 text-xs text-ink-400">
-                {search ? 'Try a different team or league name' : 'Try a different filter'}
+                {search
+                  ? 'Try a different team or league name'
+                  : filter === 'favorites'
+                    ? favoriteSlugs.length === 0
+                      ? 'Tap the ★ on any league to add it here'
+                      : 'Try a different filter'
+                    : 'Try a different filter'}
               </p>
             </div>
           </div>
@@ -315,6 +368,8 @@ function App() {
               <LeagueSection
                 key={league.id}
                 league={league}
+                favorite={favoriteSlugs.includes(league.slug)}
+                onToggleFavorite={toggleFavorite}
                 onMatchClick={handleMatchClick}
                 onStandingsClick={(slug, name) => setStandingsLeague({ slug, name })}
               />
@@ -322,6 +377,23 @@ function App() {
           </div>
         )}
       </main>
+
+      {/* Goal alert toasts */}
+      {toasts.length > 0 && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[60] flex flex-col items-center gap-2 px-4">
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              className="animate-slide-up pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-2xl border border-green-500/25 bg-ink-900/95 px-4 py-3 shadow-2xl backdrop-blur"
+            >
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-green-500/15">
+                <Goal className="h-4 w-4 text-green-400" />
+              </div>
+              <p className="text-sm font-semibold leading-snug text-white">{toast.text}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="relative border-t border-white/5 py-6 text-center">

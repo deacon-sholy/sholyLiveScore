@@ -1,5 +1,5 @@
 import { ArrowLeft, Goal, ArrowRightLeft, Calendar, Clock } from 'lucide-react';
-import type { Match, MatchEvent } from '../types';
+import type { FormResult, Match, MatchEvent } from '../types';
 import { sortEventsByMinute } from '../lib/api';
 
 interface MatchDetailProps {
@@ -98,6 +98,48 @@ function ScoreDisplay({ home, away, isLive }: { home: number; away: number; isLi
       <span className={`text-4xl sm:text-6xl font-extrabold tabular-nums transition-all ${isLive ? 'text-white' : 'text-ink-200'}`}>
         {away}
       </span>
+    </div>
+  );
+}
+
+function StatRow({ label, home, away, isPercent = false }: { label: string; home: number | null; away: number | null; isPercent?: boolean }) {
+  const h = home ?? 0;
+  const a = away ?? 0;
+  const total = h + a;
+  const frac = total > 0 ? h / total : 0.5;
+  const fmt = (v: number | null) => (v === null ? '–' : isPercent ? `${v}%` : `${v}`);
+
+  return (
+    <div className="flex items-center gap-3 py-2.5">
+      <span className="w-9 flex-shrink-0 text-right text-sm font-bold tabular-nums text-ink-100">{fmt(home)}</span>
+      <span className="w-8 flex-shrink-0 text-[10px] font-semibold text-ink-500">({Math.round(frac * 100)}%)</span>
+      <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
+        <div className="h-full rounded-full bg-gradient-to-r from-accent-500/70 to-accent-400" style={{ width: `${frac * 100}%` }} />
+      </div>
+      <span className="w-9 flex-shrink-0 text-sm font-bold tabular-nums text-ink-100">{fmt(away)}</span>
+      <span className="flex w-24 flex-shrink-0 justify-end text-right text-[10px] font-medium leading-tight text-ink-500">{label}</span>
+    </div>
+  );
+}
+
+function FormChips({ results, teamName }: { results: FormResult[]; teamName: string }) {
+  if (!results || results.length === 0) return null;
+  const chipClass = (r: string) =>
+    r === 'W' ? 'bg-green-500/15 text-green-400' : r === 'D' ? 'bg-amber-500/15 text-amber-400' : 'bg-red-500/15 text-red-400';
+  return (
+    <div className="flex w-full items-center justify-between gap-2">
+      <span className="text-xs font-bold text-ink-300">{teamName}</span>
+      <div className="flex items-center gap-1.5">
+        {results.map((f, i) => (
+          <span
+            key={i}
+            title={`${f.atVs === 'at' ? '@' : ''}${f.opponent || 'Unknown'} · ${f.score || ''} · ${f.date ? f.date.slice(0, 10) : ''}`}
+            className={`flex h-6 min-w-6 items-center justify-center rounded-lg px-1.5 text-[11px] font-extrabold ${chipClass(f.result)}`}
+          >
+            {f.result || '?'}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -212,6 +254,52 @@ export default function MatchDetail({ match, onBack }: MatchDetailProps) {
                 awayTeamId={awayTeam.id}
               />
             ))}
+          </div>
+        </div>
+      )}
+
+      {match.detail?.h2h && (
+        <div className="mt-5 flex items-center justify-center gap-2 rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-3">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-500">Head-to-Head</span>
+          <span className="text-sm font-bold text-ink-100">{match.detail.h2h.summary}</span>
+        </div>
+      )}
+
+      {/* Last 5 form */}
+      {match.detail?.form && (match.detail.form.home.length > 0 || match.detail.form.away.length > 0) && (
+        <div className="mt-5 overflow-hidden rounded-3xl border border-white/5 bg-white/[0.02] shadow-lg">
+          <h3 className="flex items-center gap-2 border-b border-white/5 px-5 py-4 text-sm font-bold text-ink-100">
+            <div className="h-2 w-2 rounded-full bg-accent-500" />
+            Last 5 Form
+            <span className="ml-auto text-[11px] font-medium text-ink-500">W · D · L</span>
+          </h3>
+          <div className="flex flex-col gap-4 px-5 py-4">
+            <FormChips results={match.detail.form.home} teamName={homeTeam.name} />
+            <FormChips results={match.detail.form.away} teamName={awayTeam.name} />
+          </div>
+        </div>
+      )}
+
+      {/* Team statistics */}
+      {match.detail?.stats && (
+        <div className="mt-5 overflow-hidden rounded-3xl border border-white/5 bg-white/[0.02] shadow-lg">
+          <h3 className="flex items-center gap-2 border-b border-white/5 px-5 py-4 text-sm font-bold text-ink-100">
+            <div className="h-2 w-2 rounded-full bg-accent-500" />
+            Statistics
+            <span className="ml-auto text-[11px] font-medium text-ink-500">{homeTeam.name} vs {awayTeam.name}</span>
+          </h3>
+          <div className="px-5 py-2">
+            <StatRow label="Possession" home={match.detail.stats.home.possession} away={match.detail.stats.away.possession} isPercent />
+            <StatRow label="Total shots" home={match.detail.stats.home.shots} away={match.detail.stats.away.shots} />
+            <StatRow label="Shots on target" home={match.detail.stats.home.shots_on_target} away={match.detail.stats.away.shots_on_target} />
+            <StatRow label="Corners" home={match.detail.stats.home.corners} away={match.detail.stats.away.corners} />
+            <StatRow label="Fouls" home={match.detail.stats.home.fouls} away={match.detail.stats.away.fouls} />
+            <StatRow label="Yellow cards" home={match.detail.stats.home.yellow_cards} away={match.detail.stats.away.yellow_cards} />
+            <StatRow label="Red cards" home={match.detail.stats.home.red_cards} away={match.detail.stats.away.red_cards} />
+            <StatRow label="Offsides" home={match.detail.stats.home.offsides} away={match.detail.stats.away.offsides} />
+            <StatRow label="Saves" home={match.detail.stats.home.saves} away={match.detail.stats.away.saves} />
+            <StatRow label="Passes" home={match.detail.stats.home.passes} away={match.detail.stats.away.passes} />
+            <StatRow label="Pass accuracy" home={match.detail.stats.home.pass_accuracy} away={match.detail.stats.away.pass_accuracy} isPercent />
           </div>
         </div>
       )}

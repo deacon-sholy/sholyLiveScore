@@ -5,24 +5,40 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: netlify-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
-          
+
+      - name: Check Netlify secrets
+        run: |
+          if [ -z "${{ secrets.NETLIFY_AUTH_TOKEN }}" ] || [ -z "${{ secrets.NETLIFY_SITE_ID }}" ]; then
+            echo "::error::Deploy skipped: add NETLIFY_AUTH_TOKEN and NETLIFY_SITE_ID as GitHub secrets."
+            echo "Create an API token at https://app.netlify.com/user/applications#personal-access-tokens"
+            echo "and add it plus your site ID (Settings -> General -> Site details) as repository secrets."
+            exit 1
+          fi
+
       - name: Install dependencies
         run: npm ci
-        
+
       - name: Build
         run: npm run build
-        
+
       - name: Deploy to Netlify
         run: npm i -g netlify-cli && netlify deploy --dir=dist --functions=netlify/functions --prod
         env:

@@ -1,4 +1,4 @@
-import type { LeagueWithMatches, MatchEvent, StandingsData } from '../types';
+import type { LeagueWithMatches, MatchDetailData, MatchEvent, StandingsData } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL ?? '/.netlify/functions/livescore';
 
@@ -6,6 +6,9 @@ interface ApiResponse {
   leagues?: LeagueWithMatches[];
   standings?: StandingsData | null;
   events?: MatchEvent[];
+  stats?: MatchDetailData['stats'];
+  form?: MatchDetailData['form'];
+  h2h?: MatchDetailData['h2h'];
   error?: string;
 }
 
@@ -45,9 +48,14 @@ export async function fetchStandings(leagueSlug: string): Promise<StandingsData 
   return data.standings ?? null;
 }
 
-export async function fetchMatchDetail(leagueSlug: string, eventId: string): Promise<MatchEvent[]> {
+export async function fetchMatchDetail(leagueSlug: string, eventId: string): Promise<MatchDetailData> {
   const data = await getJson({ league: leagueSlug, event: eventId });
-  return data.events ?? [];
+  return {
+    events: data.events ?? [],
+    stats: data.stats ?? undefined,
+    form: data.form ?? undefined,
+    h2h: data.h2h ?? undefined,
+  };
 }
 
 export function formatKickoff(kickoff: string): string {
