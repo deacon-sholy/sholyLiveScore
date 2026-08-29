@@ -242,8 +242,9 @@ interface EspnDetail {
   penaltyKick?: boolean;
   ownGoal?: boolean;
   yellowCard?: boolean;
-  team?: { id: string; displayName: string };
+  team?: { id: string; displayName?: string };
   participants?: Array<{ athlete: { displayName: string } }>;
+  athletesInvolved?: Array<{ displayName: string; team?: { id: string } }>;
   type?: { text?: string };
 }
 
@@ -298,10 +299,15 @@ function parseScore(score: string | null | undefined): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
-function mapEvent(detail: EspnDetail): MatchEvent | null {
-  const athletes = (detail.participants || []).map((p) => p.athlete.displayName);
-  const playerName = athletes[0] || '';
-  const secondAthlete = athletes[1] || '';
+function mapEvent(detail: EspnDetail, teamNameById?: Record<string, string>): MatchEvent | null {
+  const participantNames = (detail.participants || []).map((p) => p.athlete.displayName);
+  const involvedNames = (detail.athletesInvolved || []).map((a) => a.displayName);
+  const names = [...participantNames, ...involvedNames];
+  const playerName = names[0] || '';
+  const secondAthlete = names[1] || '';
+
+  const teamId = detail.team?.id ?? detail.athletesInvolved?.[0]?.team?.id ?? null;
+  const teamName = detail.team?.displayName ?? (teamId ? teamNameById?.[teamId] : undefined) ?? null;
 
   let type: string;
   let detailText = '';
@@ -338,8 +344,8 @@ function mapEvent(detail: EspnDetail): MatchEvent | null {
     minute: parseMinute(detail.clock?.displayValue || '') ?? 0,
     player_name: playerName,
     detail: detailText,
-    team_id: detail.team?.id ?? null,
-    team_name: detail.team?.displayName ?? null,
+    team_id: teamId,
+    team_name: teamName,
   };
 }
 
@@ -372,8 +378,12 @@ function transformScoreboard(league: LeagueDef, data: EspnScoreboard): LeagueWit
 
     const clock = comp.status?.clock?.displayValue ?? '';
     const status = mapStatus(comp.status?.type?.state ?? '', clock);
+    const teamNameById: Record<string, string> = {
+      [home.team.id]: home.team.displayName,
+      [away.team.id]: away.team.displayName,
+    };
     const details = (comp.details ?? [])
-      .map(mapEvent)
+      .map((d) => mapEvent(d, teamNameById))
       .filter((e): e is MatchEvent => e !== null);
 
     return {
@@ -507,7 +517,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
       const details = (json as { header?: { competitions?: EspnCompetition[] } })
         ?.header?.competitions?.[0]?.details ?? [];
       const events = details
-        .map(mapEvent)
+        .map((d) => mapEvent(d))
         .filter((e): e is MatchEvent => e !== null);
 
       setCache(cacheKey, events);
