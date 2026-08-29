@@ -23,6 +23,9 @@
 
 ## Architecture shortcuts
 - `?league&event` on the function returns second participant as `Assist: <name>`; the UI must fetch detail (scoreboard events lack assists). App.tsx `handleMatchClick` triggers `fetchMatchDetail`.
+- Single league fetch: `?league=<slug>[&date=YYYY-MM-DD]` returns that league's scoreboard only (used by `/league/:slug` and `/league/:slug/match/:id` pages).
+- Routes (react-router-dom): `/` home, `/league/:slug`, `/league/:slug/match/:id`. Every page sets title/description/canonical (+ JSON-LD via `src/lib/seo.ts`). `src/pages/` = HomePage, LeaguePage, MatchPage; shared chrome is `SiteHeader` + App shell.
+- Sitemap: `netlify/functions/sitemap.ts` (redirect from `/sitemap.xml` in netlify.toml; League list `netlify/functions/leagues.ts` is the single source of truth shared by both functions — keep `src/lib/seo.ts` LEAGUE_META in sync).
 - Favorites are client-side only: `src/lib/useFavorites.ts`, localStorage key `sholy-favorite-leagues`; the "favorites" filter fetches `all` then filters in the client.
 - Analytics: `src/lib/analytics.ts` injects gtag only when `VITE_GA_ID` is set; no-op otherwise.
 - Known legacy cleanup: `C:\Users\dell\AppData\Local\Temp\opencode\deploy-check` and `api-worktree.ts` are obsolete temp clones/backups — ignore.

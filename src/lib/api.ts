@@ -43,6 +43,13 @@ export async function fetchMatchesByStatus(
   return filterByStatus(data.leagues ?? [], statusFilter);
 }
 
+export async function fetchLeague(leagueSlug: string, date?: string): Promise<LeagueWithMatches | null> {
+  const params: Record<string, string> = { league: leagueSlug };
+  if (date) params.date = date;
+  const data = await getJson(params);
+  return data.leagues?.[0] ?? null;
+}
+
 export async function fetchStandings(leagueSlug: string): Promise<StandingsData | null> {
   const data = await getJson({ standings: leagueSlug });
   return data.standings ?? null;

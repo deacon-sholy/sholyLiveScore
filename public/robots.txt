@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://sholylivescore.netlify.app/sitemap.xml
