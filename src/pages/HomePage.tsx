@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Radio, CheckCircle2, CalendarDays, LayoutGrid, ChevronLeft, ChevronRight, Star, Goal } from 'lucide-react';
+import { Radio, CheckCircle2, CalendarDays, LayoutGrid, ChevronLeft, ChevronRight, Star } from 'lucide-react';
 import type { LeagueWithMatches } from '../types';
 import { fetchMatchesByStatus } from '../lib/api';
 import SiteHeader from '../components/SiteHeader';
@@ -40,8 +40,6 @@ export default function HomePage() {
   const [search, setSearch] = useState('');
   const [standingsLeague, setStandingsLeague] = useState<{ slug: string; name: string } | null>(null);
   const { favoriteSlugs, toggleFavorite } = useFavorites();
-  const [toasts, setToasts] = useState<Array<{ id: number; text: string }>>([]);
-  const prevGoalKeys = useRef<Set<string> | null>(null);
 
   const loadMatches = useCallback(async (f: Filter, isRefresh = false) => {
     if (isRefresh) {
@@ -103,34 +101,6 @@ export default function HomePage() {
       }))
       .filter((l) => l.matches.length > 0);
   }, [leagues, search]);
-
-  // Goal alerts: watch the live feed for new goals and toast them
-  useEffect(() => {
-    const keys = new Set<string>();
-    for (const l of leagues) {
-      for (const m of l.matches) {
-        if (m.status !== 'live' && m.status !== 'halftime') continue;
-        for (const e of m.events) {
-          if (e.type === 'goal') keys.add(`${m.id}:${e.minute}:${String(e.player_name ?? '')}`);
-        }
-      }
-    }
-    if (prevGoalKeys.current !== null) {
-      for (const key of keys) {
-        if (prevGoalKeys.current.has(key)) continue;
-        const [matchId, minute, player] = key.split(':');
-        const match = leagues.flatMap((l) => l.matches).find((mm) => mm.id === matchId);
-        if (!match) continue;
-        const id = Date.now() + Math.random();
-        const text = `${player || 'Goal'} ${minute}' — ${match.home_team.name} ${match.home_score}-${match.away_score} ${match.away_team.name}`;
-        setToasts((prev) => [...prev, { id, text }]);
-        window.setTimeout(() => {
-          setToasts((prev) => prev.filter((t) => t.id !== id));
-        }, 6000);
-      }
-    }
-    prevGoalKeys.current = keys;
-  }, [leagues]);
 
   const shiftDate = useCallback((delta: number) => {
     setDate((current) => {
@@ -303,22 +273,6 @@ export default function HomePage() {
           </div>
         )}
       </main>
-
-      {toasts.length > 0 && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[60] flex flex-col items-center gap-2 px-4">
-          {toasts.map((toast) => (
-            <div
-              key={toast.id}
-              className="animate-slide-up pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-2xl border border-green-500/25 bg-ink-900/95 px-4 py-3 shadow-2xl backdrop-blur"
-            >
-              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-green-500/15">
-                <Goal className="h-4 w-4 text-green-400" />
-              </div>
-              <p className="text-sm font-semibold leading-snug text-white">{toast.text}</p>
-            </div>
-          ))}
-        </div>
-      )}
 
       {standingsLeague && (
         <StandingsModal
