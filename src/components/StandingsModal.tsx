@@ -1,5 +1,5 @@
 import { Trophy, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { StandingsData } from '../types';
 import { fetchStandings } from '../lib/api';
 
@@ -11,8 +11,10 @@ interface StandingsModalProps {
 
 export default function StandingsModal({ leagueSlug, leagueName, onClose }: StandingsModalProps) {
   const [data, setData] = useState<StandingsData | null>(null);
+  const [groupIndex, setGroupIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -23,11 +25,12 @@ export default function StandingsModal({ leagueSlug, leagueName, onClose }: Stan
       try {
         const standings = await fetchStandings(leagueSlug);
         if (cancelled) return;
-        if (!standings || standings.teams.length === 0) {
+        if (!standings || standings.groups.length === 0) {
           setError('Standings not available for this league');
           return;
         }
         setData(standings);
+        setGroupIndex(0);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Failed to load standings');
@@ -43,10 +46,37 @@ export default function StandingsModal({ leagueSlug, leagueName, onClose }: Stan
     };
   }, [leagueSlug]);
 
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', onKey);
+    // Prevent the page behind the sheet from scrolling.
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    closeRef.current?.focus();
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previous;
+    };
+  }, [onClose]);
+
+  const group = data?.groups[groupIndex] ?? data?.groups[0] ?? null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-lg max-h-[85vh] overflow-hidden rounded-t-3xl sm:rounded-3xl border border-white/5 bg-ink-900 shadow-2xl animate-slide-up">
+      <button
+        type="button"
+        aria-label="Close standings"
+        className="absolute inset-0 cursor-default bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${leagueName} standings`}
+        className="relative z-10 w-full max-w-lg max-h-[85vh] overflow-hidden rounded-t-3xl sm:rounded-3xl border border-white/5 bg-ink-900 shadow-2xl animate-slide-up"
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
           <div className="flex items-center gap-3">
@@ -59,12 +89,36 @@ export default function StandingsModal({ leagueSlug, leagueName, onClose }: Stan
             </div>
           </div>
           <button
+            ref={closeRef}
+            type="button"
             onClick={onClose}
+            aria-label="Close standings"
             className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/5 bg-white/[0.03] text-ink-400 transition-colors hover:text-ink-200"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {/* Group switcher — tournaments like the World Cup have several tables */}
+        {data && data.groups.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto border-b border-white/5 px-5 py-3 scrollbar-thin">
+            {data.groups.map((g, i) => (
+              <button
+                key={g.name || i}
+                type="button"
+                onClick={() => setGroupIndex(i)}
+                aria-pressed={i === groupIndex}
+                className={`flex-shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+                  i === groupIndex
+                    ? 'bg-accent-500/20 text-accent-400 border border-accent-500/30'
+                    : 'border border-white/5 bg-white/[0.03] text-ink-400 hover:text-ink-200'
+                }`}
+              >
+                {g.name || 'Table'}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Content */}
         <div className="overflow-y-auto" style={{ maxHeight: 'calc(85vh - 73px)' }}>
@@ -77,7 +131,7 @@ export default function StandingsModal({ leagueSlug, leagueName, onClose }: Stan
               <p className="text-sm font-medium text-ink-400">{error}</p>
               <p className="text-xs text-ink-500">Standings may not be available for this league</p>
             </div>
-          ) : data ? (
+          ) : group ? (
             <table className="w-full text-left text-sm">
               <thead className="sticky top-0 bg-ink-900">
                 <tr className="border-b border-white/5 text-[10px] font-semibold uppercase tracking-wider text-ink-400">
@@ -92,7 +146,7 @@ export default function StandingsModal({ leagueSlug, leagueName, onClose }: Stan
                 </tr>
               </thead>
               <tbody>
-                {data.teams.map((team) => {
+                {group.teams.map((team) => {
                   const gd = team.goalsFor - team.goalsAgainst;
                   return (
                     <tr

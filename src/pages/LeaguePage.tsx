@@ -7,7 +7,7 @@ import SiteHeader from '../components/SiteHeader';
 import LeagueSection from '../components/LeagueSection';
 import StandingsModal from '../components/StandingsModal';
 import { useFavorites } from '../lib/useFavorites';
-import { applySeo, isKnownLeague, leagueName, leagueSlugTitle } from '../lib/seo';
+import { applySeo, isKnownLeague, leagueName, leagueSlugTitle, SITE } from '../lib/seo';
 
 function toISODate(date: Date): string {
   const y = date.getFullYear();
@@ -61,7 +61,7 @@ export default function LeaguePage() {
         '@type': 'WebPage',
         name: `${name} — Live Scores`,
         description: `${name} live scores, fixtures, results, standings and stats on Sholy Livescore.`,
-        url: `https://sholylivescore.netlify.app/league/${leagueSlug}`,
+        url: `${SITE}/league/${leagueSlug}`,
       },
     });
   }, [leagueSlug, name]);

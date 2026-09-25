@@ -1,18 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import type { Match } from '../types';
-import { fetchLeague, fetchMatchDetail } from '../lib/api';
+import { fetchMatchDetail } from '../lib/api';
 import SiteHeader from '../components/SiteHeader';
 import MatchDetail from '../components/MatchDetail';
-import { applySeo, isKnownLeague, leagueName } from '../lib/seo';
-
-function toISODate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
+import { applySeo, isKnownLeague, leagueName, SITE } from '../lib/seo';
 
 export default function MatchPage() {
   const navigate = useNavigate();
@@ -29,20 +22,14 @@ export default function MatchPage() {
       inFlight.current = true;
       setError(null);
       try {
-        const league = await fetchLeague(leagueSlug, toISODate(new Date()));
-        const found = league?.matches.find((m) => m.id === matchId) ?? null;
-        if (!alive) return;
-        if (!found) {
-          setMatch(null);
-          setLoading(false);
-          return;
-        }
-        const detail = await fetchMatchDetail(leagueSlug, matchId).catch(() => null);
+        // The summary endpoint returns the match itself, so this works for any
+        // date rather than only matches in today's scoreboard.
+        const detail = await fetchMatchDetail(leagueSlug, matchId);
         if (!alive) return;
         setMatch(
-          detail && detail.events.length > 0
-            ? { ...found, events: detail.events, detail: { stats: detail.stats, form: detail.form, h2h: detail.h2h } }
-            : found,
+          detail.match
+            ? { ...detail.match, detail: { stats: detail.stats, form: detail.form, h2h: detail.h2h } }
+            : null,
         );
       } catch (err) {
         if (alive) setError(err instanceof Error ? err.message : 'Failed to load match');
@@ -52,6 +39,8 @@ export default function MatchPage() {
       }
     };
 
+    setLoading(true);
+    setMatch(null);
     load();
     const interval = setInterval(load, 15000);
     return () => {
@@ -68,9 +57,10 @@ export default function MatchPage() {
     const seoStatus =
       match?.status === 'finished'
         ? `${home} ${match.home_score}-${match.away_score} ${away} — full time.`
-        : match?.status === 'live' || match?.status === 'halftime'
+        : match && isInPlayStatus(match.status)
           ? `${home} vs ${away} — ${match.home_score}-${match.away_score}, live.`
           : `${home} vs ${away} — kickoff, fixtures and results.`;
+    const url = `${SITE}/league/${leagueSlug}/match/${matchId}`;
 
     applySeo({
       title,
@@ -83,15 +73,12 @@ export default function MatchPage() {
             name: `${home} vs ${away}`,
             startDate: match.kickoff,
             sport: 'Soccer',
-            eventStatus:
-              match.status === 'scheduled' || match.status === 'live' || match.status === 'halftime'
-                ? 'https://schema.org/EventScheduled'
-                : undefined,
+            eventStatus: `https://schema.org/${eventStatus(match.status)}`,
             competitor: [
               { '@type': 'SportsTeam', name: home, homeAway: 'Home', score: String(match.home_score) },
               { '@type': 'SportsTeam', name: away, homeAway: 'Away', score: String(match.away_score) },
             ],
-            url: `https://sholylivescore.netlify.app/league/${leagueSlug}/match/${matchId}`,
+            url,
           }
         : undefined,
     });
@@ -147,6 +134,16 @@ export default function MatchPage() {
   );
 }
 
+function isInPlayStatus(status: Match['status']): boolean {
+  return status === 'live' || status === 'halftime';
+}
+
+function eventStatus(status: Match['status']): string {
+  if (status === 'finished') return 'EventCompleted';
+  if (isInPlayStatus(status)) return 'EventInProgress';
+  return 'EventScheduled';
+}
+
 function NotFound({ slug }: { slug: string }) {
   return (
     <div className="mx-auto flex min-h-[400px] max-w-3xl flex-col items-center justify-center gap-4 px-4">
@@ -155,7 +152,7 @@ function NotFound({ slug }: { slug: string }) {
       </div>
       <div className="text-center">
         <p className="text-sm font-semibold text-ink-200">Match not found</p>
-        <p className="mt-1 text-xs text-ink-400">This {slug} is not in today's fixtures, or has not started yet.</p>
+        <p className="mt-1 text-xs text-ink-400">This {slug} could not be loaded, or the id is no longer valid.</p>
       </div>
       <Link
         to="/"

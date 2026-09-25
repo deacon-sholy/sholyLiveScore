@@ -1,5 +1,7 @@
 import { Star, Trophy } from 'lucide-react';
 import type { LeagueWithMatches } from '../types';
+import { isInPlay } from '../lib/api';
+import { getLeague } from '../lib/leagues';
 import MatchCard from './MatchCard';
 
 interface LeagueSectionProps {
@@ -11,8 +13,9 @@ interface LeagueSectionProps {
 }
 
 export default function LeagueSection({ league, favorite, onToggleFavorite, onMatchClick, onStandingsClick }: LeagueSectionProps) {
-  const liveCount = league.matches.filter((m) => m.status === 'live').length;
+  const liveCount = league.matches.filter(isInPlay).length;
   const finishedCount = league.matches.filter((m) => m.status === 'finished').length;
+  const hasStandings = getLeague(league.slug)?.standings !== false;
 
   return (
     <div className="mb-6 animate-slide-up">
@@ -55,13 +58,15 @@ export default function LeagueSection({ league, favorite, onToggleFavorite, onMa
           >
             <Star className="h-3.5 w-3.5" fill={favorite ? 'currentColor' : 'none'} />
           </button>
-          <button
-            onClick={() => onStandingsClick(league.slug, league.name)}
-            className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-semibold text-ink-400 transition-all hover:border-accent-500/30 hover:bg-accent-500/5 hover:text-accent-400"
-          >
-            <Trophy className="h-3 w-3" />
-            Table
-          </button>
+          {hasStandings && (
+            <button
+              onClick={() => onStandingsClick(league.slug, league.name)}
+              className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-semibold text-ink-400 transition-all hover:border-accent-500/30 hover:bg-accent-500/5 hover:text-accent-400"
+            >
+              <Trophy className="h-3 w-3" />
+              Table
+            </button>
+          )}
           <div className="flex h-7 min-w-7 items-center justify-center rounded-lg border border-white/5 bg-white/[0.03] px-2 text-[11px] font-semibold text-ink-400">
             {league.matches.length}
           </div>

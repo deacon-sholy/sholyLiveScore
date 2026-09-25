@@ -58,9 +58,15 @@ export interface StandingTeam {
   points: number;
 }
 
+export interface StandingGroup {
+  /** Empty for single-table leagues; "Group A" etc. for tournaments. */
+  name: string;
+  teams: StandingTeam[];
+}
+
 export interface StandingsData {
   league: string;
-  teams: StandingTeam[];
+  groups: StandingGroup[];
 }
 
 export interface TeamStats {
@@ -86,6 +92,7 @@ export interface FormResult {
 }
 
 export interface MatchDetailData {
+  match?: Match | null;
   events: MatchEvent[];
   stats?: { home: TeamStats; away: TeamStats } | null;
   form?: { home: FormResult[]; away: FormResult[] } | null;

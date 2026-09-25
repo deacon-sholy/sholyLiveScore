@@ -17,6 +17,9 @@ function EventRow({ event, homeTeamId, awayTeamId }: { event: MatchEvent; homeTe
   if (event.type === 'goal') {
     icon = <Goal className="h-4 w-4 text-green-500" />;
     badgeColor = 'bg-green-500/15 text-green-400 border-green-500/20';
+  } else if (event.type === 'substitution') {
+    icon = <ArrowRightLeft className="h-4 w-4 text-blue-400" />;
+    badgeColor = 'bg-blue-500/15 text-blue-400 border-blue-500/20';
   } else if (event.type === 'yellow_card') {
     icon = <div className="h-4 w-3 rounded-[2px] bg-yellow-500 shadow-sm shadow-yellow-500/30" />;
     badgeColor = 'bg-yellow-500/15 text-yellow-400 border-yellow-500/20';
@@ -58,6 +61,19 @@ function EventRow({ event, homeTeamId, awayTeamId }: { event: MatchEvent; homeTe
             <div className="flex flex-col min-w-0">
               <span className="truncate text-sm font-semibold text-ink-100">{event.player_name}</span>
               {event.detail && <span className="text-xs text-ink-400 truncate">{event.detail}</span>}
+            </div>
+          </div>
+        )}
+        {/* ESPN occasionally omits the team on an event; show it centrally
+            rather than rendering a row with only a minute badge. */}
+        {!isHome && !isAway && (
+          <div className="flex items-center gap-2.5">
+            <div className="flex-shrink-0">{icon}</div>
+            <div className="flex min-w-0 flex-col">
+              <span className="truncate text-sm font-semibold text-ink-100">
+                {event.player_name || '—'}
+              </span>
+              {event.detail && <span className="truncate text-xs text-ink-400">{event.detail}</span>}
             </div>
           </div>
         )}
@@ -103,18 +119,34 @@ function ScoreDisplay({ home, away, isLive }: { home: number; away: number; isLi
 }
 
 function StatRow({ label, home, away, isPercent = false }: { label: string; home: number | null; away: number | null; isPercent?: boolean }) {
-  const h = home ?? 0;
-  const a = away ?? 0;
-  const total = h + a;
-  const frac = total > 0 ? h / total : 0.5;
+  // Percentages (possession, pass accuracy) are already a share of the whole,
+  // so the bar must use the value directly. Counting stats share the total
+  // between the two teams, so the bar uses home / (home + away).
+  const frac = isPercent
+    ? (home ?? 50) / 100
+    : home === null || away === null
+      ? 0.5
+      : (home + away) > 0
+        ? home / (home + away)
+        : 0.5;
   const fmt = (v: number | null) => (v === null ? '–' : isPercent ? `${v}%` : `${v}`);
+  const missing = home === null || away === null;
 
   return (
     <div className="flex items-center gap-3 py-2.5">
       <span className="w-9 flex-shrink-0 text-right text-sm font-bold tabular-nums text-ink-100">{fmt(home)}</span>
-      <span className="w-8 flex-shrink-0 text-[10px] font-semibold text-ink-500">({Math.round(frac * 100)}%)</span>
       <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
-        <div className="h-full rounded-full bg-gradient-to-r from-accent-500/70 to-accent-400" style={{ width: `${frac * 100}%` }} />
+        {missing ? (
+          <div className="h-full w-full bg-white/[0.02]" />
+        ) : (
+          <>
+            <div className="h-full rounded-full bg-gradient-to-r from-accent-500/70 to-accent-400" style={{ width: `${frac * 100}%` }} />
+            <div
+              className="absolute top-0 h-full w-px bg-white/20"
+              style={{ left: '50%' }}
+            />
+          </>
+        )}
       </div>
       <span className="w-9 flex-shrink-0 text-sm font-bold tabular-nums text-ink-100">{fmt(away)}</span>
       <span className="flex w-24 flex-shrink-0 justify-end text-right text-[10px] font-medium leading-tight text-ink-500">{label}</span>
@@ -149,6 +181,9 @@ export default function MatchDetail({ match, onBack }: MatchDetailProps) {
   const awayTeam = match.away_team;
   const events = sortEventsByMinute(match.events);
   const isLive = match.status === 'live' || match.status === 'halftime';
+  // ESPN can omit goals from the event feed (shootouts, own-goal data gaps), so
+  // warn instead of showing a timeline that silently disagrees with the score.
+  const goalGap = match.home_score + match.away_score - events.filter((e) => e.type === 'goal').length;
   const kickoffDate = new Date(match.kickoff);
   const kickoffStr = kickoffDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   const kickoffTime = kickoffDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -271,7 +306,7 @@ export default function MatchDetail({ match, onBack }: MatchDetailProps) {
           <h3 className="flex items-center gap-2 border-b border-white/5 px-5 py-4 text-sm font-bold text-ink-100">
             <div className="h-2 w-2 rounded-full bg-accent-500" />
             Last 5 Form
-            <span className="ml-auto text-[11px] font-medium text-ink-500">W · D · L</span>
+            <span className="ml-auto text-[11px] font-medium text-ink-500">oldest → newest</span>
           </h3>
           <div className="flex flex-col gap-4 px-5 py-4">
             <FormChips results={match.detail.form.home} teamName={homeTeam.name} />
@@ -314,6 +349,12 @@ export default function MatchDetail({ match, onBack }: MatchDetailProps) {
             <p className="mt-1.5 text-xs text-ink-400">{kickoffStr} · {kickoffTime}</p>
           </div>
         </div>
+      )}
+
+      {events.length > 0 && goalGap > 0 && (
+        <p className="mt-3 text-center text-[11px] text-ink-500">
+          {goalGap} more {goalGap === 1 ? 'goal' : 'goals'} not listed in the timeline
+        </p>
       )}
 
       {events.length === 0 && match.status === 'finished' && (

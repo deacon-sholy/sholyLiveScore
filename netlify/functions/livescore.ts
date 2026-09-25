@@ -1,21 +1,56 @@
 import type { Handler, HandlerEvent } from '@netlify/functions';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
-};
+import { LEAGUES, LEAGUE_INDEX, getLeague, type LeagueDef } from '../../src/lib/leagues';
 
 // ESPN's public soccer API is free, requires no key and covers 100+ leagues.
 const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports/soccer';
+const ESPN_STANDINGS_BASE = 'https://site.web.api.espn.com/apis/v2/sports/soccer';
 
-import { LEAGUES, LEAGUE_INDEX, type LeagueDef } from './leagues';
+// Only same-origin browser requests are expected; we echo the caller's origin
+// back instead of `*` so this can't be used as an open proxy for scrapers.
+function corsHeaders(origin: string | undefined): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    Vary: 'Origin',
+  };
+  if (origin && /^https:\/\/([a-z0-9-]+\.)*netlify\.app$/.test(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin;
+  }
+  return headers;
+}
 
+function jsonResponse(statusCode: number, body: unknown, origin?: string) {
+  return {
+    statusCode,
+    headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // In-memory cache (a warm Lambda/Netlify instance keeps it alive).
-const cache = new Map<string, { data: unknown; timestamp: number }>();
+// ---------------------------------------------------------------------------
+
+interface CacheEntry {
+  data: unknown;
+  timestamp: number;
+}
+
+const cache = new Map<string, CacheEntry>();
 const CACHE_TTL = 60_000; // 60s for scoreboards
 const MATCH_CACHE_TTL = 30_000; // 30s for match details
 const STANDINGS_CACHE_TTL = 5 * 60_000; // 5min for standings
+// Hard cap so a long-lived instance can't grow the map without bound.
+const MAX_CACHE_ENTRIES = 500;
+
+function pruneCache(): void {
+  if (cache.size <= MAX_CACHE_ENTRIES) return;
+  // Drop the oldest entries first.
+  const entries = [...cache.entries()].sort((a, b) => a[1].timestamp - b[1].timestamp);
+  for (const [key] of entries.slice(0, cache.size - MAX_CACHE_ENTRIES)) {
+    cache.delete(key);
+  }
+}
 
 function getCached(key: string, ttl: number = CACHE_TTL): unknown | null {
   const entry = cache.get(key);
@@ -25,18 +60,28 @@ function getCached(key: string, ttl: number = CACHE_TTL): unknown | null {
   return null;
 }
 
+/** Returns a stale value regardless of age — used to answer when ESPN is down. */
+function getStale(key: string): unknown | null {
+  return cache.get(key)?.data ?? null;
+}
+
 function setCache(key: string, data: unknown): void {
   cache.set(key, { data, timestamp: Date.now() });
+  pruneCache();
 }
 
 // ---------------------------------------------------------------------------
 // HTTP + concurrency helpers
 // ---------------------------------------------------------------------------
 
-async function fetchJson(url: string, timeoutMs = 8000): Promise<unknown | null> {
-  const maxAttempts = 3;
+async function fetchJson(
+  url: string,
+  timeoutMs = 5000,
+  attempts = 2,
+): Promise<unknown | null> {
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    if (timeoutMs <= 0) return null;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -48,9 +93,10 @@ async function fetchJson(url: string, timeoutMs = 8000): Promise<unknown | null>
         signal: controller.signal,
       });
       if (resp.ok) return await resp.json();
-      if (attempt < maxAttempts) await sleep(attempt * 250);
+      // 4xx won't get better on retry.
+      if (resp.status < 500 && attempt < attempts) await sleep(attempt * 250);
     } catch {
-      if (attempt < maxAttempts) await sleep(attempt * 250);
+      if (attempt < attempts) await sleep(attempt * 250);
     } finally {
       clearTimeout(timer);
     }
@@ -60,10 +106,13 @@ async function fetchJson(url: string, timeoutMs = 8000): Promise<unknown | null>
 
 // Runs `fn` over `items` with at most `limit` concurrent tasks. Individual
 // failures never reject the batch — a bad league just comes back null.
+// Stops starting new work once `deadline` has passed so the whole request
+// stays inside the platform's execution limit.
 async function runLimited<T>(
   items: T[],
   limit: number,
   fn: (item: T) => Promise<unknown>,
+  deadline = Number.POSITIVE_INFINITY,
 ): Promise<unknown[]> {
   const results: unknown[] = new Array(items.length);
   let cursor = 0;
@@ -72,6 +121,7 @@ async function runLimited<T>(
     while (true) {
       const index = cursor++;
       if (index >= items.length) return;
+      if (Date.now() >= deadline) return;
       try {
         results[index] = await fn(items[index]);
       } catch {
@@ -84,14 +134,6 @@ async function runLimited<T>(
     Array.from({ length: Math.min(limit, items.length) }, () => worker()),
   );
   return results;
-}
-
-function jsonResponse(statusCode: number, body: unknown) {
-  return {
-    statusCode,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  };
 }
 
 function normalizeDateParam(raw: string | null | undefined): string | null {
@@ -162,9 +204,14 @@ interface StandingTeam {
   points: number;
 }
 
+interface StandingGroup {
+  name: string;
+  teams: StandingTeam[];
+}
+
 interface StandingsData {
   league: string;
-  teams: StandingTeam[];
+  groups: StandingGroup[];
 }
 
 interface EspnTeamRef {
@@ -173,6 +220,7 @@ interface EspnTeamRef {
   abbreviation?: string;
   shortDisplayName?: string;
   logo?: string;
+  logos?: Array<{ href?: string }>;
   color?: string;
 }
 
@@ -195,11 +243,15 @@ interface EspnDetail {
   type?: { text?: string };
 }
 
+interface EspnStatus {
+  clock?: { displayValue?: string };
+  type: { state: string; shortDetail?: string };
+}
+
 interface EspnCompetition {
-  status?: {
-    clock?: { displayValue?: string };
-    type: { state: string; shortDetail?: string };
-  };
+  id?: string;
+  date?: string;
+  status?: EspnStatus;
   competitors?: EspnCompetitor[];
   details?: EspnDetail[];
 }
@@ -236,6 +288,7 @@ function mapStatus(state: string, clockDisplay?: string): MatchStatus {
 }
 
 function parseMinute(clockDisplay: string): number | null {
+  // Handles "67'", "90'+5'" and "45+2".
   const match = clockDisplay.match(/(\d+)/);
   return match ? parseInt(match[1], 10) : null;
 }
@@ -246,15 +299,33 @@ function parseScore(score: string | null | undefined): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
+function teamLogo(team: EspnTeamRef | undefined): string | null {
+  if (!team) return null;
+  return team.logo ?? team.logos?.[0]?.href ?? null;
+}
+
+function mapTeam(team: EspnTeamRef): Team {
+  return {
+    id: team.id,
+    name: team.displayName,
+    short_name: team.abbreviation || team.shortDisplayName || null,
+    logo: teamLogo(team),
+    color: team.color || null,
+  };
+}
+
 function mapEvent(detail: EspnDetail, teamNameById?: Record<string, string>): MatchEvent | null {
   const participantNames = (detail.participants || []).map((p) => p.athlete.displayName);
   const involvedNames = (detail.athletesInvolved || []).map((a) => a.displayName);
-  const names = [...participantNames, ...involvedNames];
+  const names = [...participantNames, ...involvedNames].filter(Boolean);
   const playerName = names[0] || '';
   const secondAthlete = names[1] || '';
 
-  const teamId = detail.team?.id ?? detail.athletesInvolved?.[0]?.team?.id ?? null;
-  const teamName = detail.team?.displayName ?? (teamId ? teamNameById?.[teamId] : undefined) ?? null;
+  // The summary endpoint omits `detail.team` for internationals, so fall back
+  // to whichever athlete is involved.
+  const teamId = detail.team?.id || detail.athletesInvolved?.[0]?.team?.id || null;
+  const teamName =
+    detail.team?.displayName || (teamId ? teamNameById?.[teamId] : undefined) || null;
 
   let type: string;
   let detailText = '';
@@ -280,7 +351,9 @@ function mapEvent(detail: EspnDetail, teamNameById?: Record<string, string>): Ma
       detailText = 'Red card';
     } else if (text.includes('sub')) {
       type = 'substitution';
-      detailText = secondAthlete ? `For: ${secondAthlete}` : '';
+      // participants[0] is the player coming on, participants[1] is the one
+      // being replaced — so the second name is who goes "off", not "for".
+      detailText = secondAthlete ? `Off: ${secondAthlete}` : 'Substitution';
     } else {
       return null;
     }
@@ -309,59 +382,58 @@ function compareMatches(a: Match, b: Match): number {
   return new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime();
 }
 
+function buildMatch(
+  league: LeagueDef,
+  event: EspnEvent,
+  comp: EspnCompetition,
+  leagueLogo: string | null,
+  teamNameById?: Record<string, string>,
+): Match | null {
+  const home = comp.competitors?.find((c) => c.homeAway === 'home');
+  const away = comp.competitors?.find((c) => c.homeAway === 'away');
+  if (!home || !away) return null;
+
+  const clock = comp.status?.clock?.displayValue ?? '';
+  const status = mapStatus(comp.status?.type?.state ?? '', clock);
+  const names: Record<string, string> = {
+    [home.team.id]: home.team.displayName,
+    [away.team.id]: away.team.displayName,
+  };
+  const details = (comp.details ?? [])
+    .map((d) => mapEvent(d, teamNameById ?? names))
+    .filter((e): e is MatchEvent => e !== null);
+
+  return {
+    id: event.id,
+    league_slug: league.slug,
+    league_name: league.name,
+    league_country: league.country,
+    league_logo: leagueLogo,
+    kickoff: comp.date || event.date,
+    status,
+    status_detail: comp.status?.type?.shortDetail ?? '',
+    minute: status === 'live' ? parseMinute(clock) : null,
+    home_team: mapTeam(home.team),
+    away_team: mapTeam(away.team),
+    home_score: parseScore(home.score),
+    away_score: parseScore(away.score),
+    events: details,
+  };
+}
+
 function transformScoreboard(league: LeagueDef, data: EspnScoreboard): LeagueWithMatches | null {
   const events = data.events ?? [];
   if (events.length === 0) return null;
 
   const leagueLogo = data.leagues?.[0]?.logos?.[0]?.href ?? null;
 
-  const matches = events.map((event): Match | null => {
-    const comp = event.competitions?.[0];
-    if (!comp) return null;
-
-    const home = comp.competitors?.find((c) => c.homeAway === 'home');
-    const away = comp.competitors?.find((c) => c.homeAway === 'away');
-    if (!home || !away) return null;
-
-    const clock = comp.status?.clock?.displayValue ?? '';
-    const status = mapStatus(comp.status?.type?.state ?? '', clock);
-    const teamNameById: Record<string, string> = {
-      [home.team.id]: home.team.displayName,
-      [away.team.id]: away.team.displayName,
-    };
-    const details = (comp.details ?? [])
-      .map((d) => mapEvent(d, teamNameById))
-      .filter((e): e is MatchEvent => e !== null);
-
-    return {
-      id: event.id,
-      league_slug: league.slug,
-      league_name: league.name,
-      league_country: league.country,
-      league_logo: leagueLogo,
-      kickoff: event.date,
-      status,
-      status_detail: comp.status?.type?.shortDetail ?? '',
-      minute: status === 'live' ? parseMinute(clock) : null,
-      home_team: {
-        id: home.team.id,
-        name: home.team.displayName,
-        short_name: home.team.abbreviation || home.team.shortDisplayName || null,
-        logo: home.team.logo || null,
-        color: home.team.color || null,
-      },
-      away_team: {
-        id: away.team.id,
-        name: away.team.displayName,
-        short_name: away.team.abbreviation || away.team.shortDisplayName || null,
-        logo: away.team.logo || null,
-        color: away.team.color || null,
-      },
-      home_score: parseScore(home.score),
-      away_score: parseScore(away.score),
-      events: details,
-    };
-  }).filter((m): m is Match => m !== null);
+  const matches = events
+    .map((event): Match | null => {
+      const comp = event.competitions?.[0];
+      if (!comp) return null;
+      return buildMatch(league, event, comp, leagueLogo);
+    })
+    .filter((m): m is Match => m !== null);
 
   if (matches.length === 0) return null;
 
@@ -377,8 +449,8 @@ function transformScoreboard(league: LeagueDef, data: EspnScoreboard): LeagueWit
   };
 }
 
-// Stable display order (curated LEAGUES list, premier league first). Matches
-// within a league are still sorted live-first by compareMatches.
+// Stable display order (curated LEAGUES list). Matches within a league are
+// still sorted live-first by compareMatches.
 function sortLeagues(leagues: LeagueWithMatches[]): void {
   leagues.sort((a, b) => {
     const aIndex = LEAGUE_INDEX.get(a.slug) ?? Number.MAX_SAFE_INTEGER;
@@ -389,31 +461,34 @@ function sortLeagues(leagues: LeagueWithMatches[]): void {
 
 function parseStandings(json: unknown, leagueName: string): StandingsData | null {
   // ESPN's standings API nests tables under children[].standings.entries.
-  const children = (json as { children?: Array<{ standings?: { entries?: EspnStandingEntry[] } }> })
+  // Tournaments (World Cup, Euro) have one child per group; domestic leagues
+  // have a single unnamed child.
+  const children = (json as { children?: Array<{ name?: string; standings?: { entries?: EspnStandingEntry[] } }> })
     ?.children;
   if (!Array.isArray(children)) return null;
 
-  const entries = children.flatMap((child) => child.standings?.entries ?? []);
-  if (entries.length === 0) return null;
+  const groups: StandingGroup[] = children
+    .map((child) => ({
+      name: (child.name ?? '').trim(),
+      teams: (child.standings?.entries ?? []).map((entry, index) => {
+        const stats = Object.fromEntries((entry.stats ?? []).map((s) => [s.name, s.displayValue]));
+        return {
+          position: parseInt(stats.rank || '0', 10) || index + 1,
+          name: entry.team?.displayName || entry.team?.name || 'Unknown',
+          played: parseInt(stats.gamesPlayed || stats.played || '0', 10),
+          wins: parseInt(stats.wins || '0', 10),
+          draws: parseInt(stats.ties || stats.draws || '0', 10),
+          losses: parseInt(stats.losses || '0', 10),
+          goalsFor: parseInt(stats.pointsFor || stats.goalsFor || '0', 10),
+          goalsAgainst: parseInt(stats.pointsAgainst || stats.goalsAgainst || '0', 10),
+          points: parseInt(stats.points || '0', 10),
+        };
+      }),
+    }))
+    .filter((group) => group.teams.length > 0);
 
-  const teams = entries.map((entry, index) => {
-    const stats = Object.fromEntries(
-      (entry.stats ?? []).map((s) => [s.name, s.displayValue]),
-    );
-    return {
-      position: parseInt(stats.rank || '0', 10) || index + 1,
-      name: entry.team?.displayName || entry.team?.name || 'Unknown',
-      played: parseInt(stats.gamesPlayed || stats.played || '0', 10),
-      wins: parseInt(stats.wins || '0', 10),
-      draws: parseInt(stats.ties || stats.draws || '0', 10),
-      losses: parseInt(stats.losses || '0', 10),
-      goalsFor: parseInt(stats.pointsFor || stats.goalsFor || '0', 10),
-      goalsAgainst: parseInt(stats.pointsAgainst || stats.goalsAgainst || '0', 10),
-      points: parseInt(stats.points || '0', 10),
-    };
-  });
-
-  return { league: leagueName, teams };
+  if (groups.length === 0) return null;
+  return { league: leagueName, groups };
 }
 
 // ---------------------------------------------------------------------------
@@ -429,12 +504,11 @@ interface EspnSummaryBoxscore {
 
 interface EspnSummary {
   header?: {
-    competitions?: Array<{
-      competitors?: EspnCompetitor[];
-      details?: EspnDetail[];
-    }>;
+    competitions?: EspnCompetition[];
+    league?: { logos?: Array<{ href: string }> };
   };
   boxscore?: EspnSummaryBoxscore;
+  keyEvents?: EspnDetail[];
   lastFiveGames?: Array<{
     team?: EspnTeamRef;
     events?: Array<{
@@ -495,13 +569,6 @@ function statNumber(stats: Record<string, string>, key: string): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
-function extractMatchExtras(json: EspnSummary): MatchExtras {
-  const stats = extractTeamStats(json);
-  const form = extractForm(json);
-  const h2h = extractH2h(json);
-  return { stats, form, h2h };
-}
-
 function extractTeamStats(json: EspnSummary): MatchExtras['stats'] {
   const competitors = json.header?.competitions?.[0]?.competitors ?? [];
   const home = competitors.find((c) => c.homeAway === 'home');
@@ -538,7 +605,9 @@ function extractTeamStats(json: EspnSummary): MatchExtras['stats'] {
 
   const homeStats = toStats(home.team?.id ?? '');
   const awayStats = toStats(away.team?.id ?? '');
-  const hasAny = Object.values(homeStats).some((v) => v !== null) || Object.values(awayStats).some((v) => v !== null);
+  const hasAny =
+    Object.values(homeStats).some((v) => v !== null) ||
+    Object.values(awayStats).some((v) => v !== null);
   if (!hasAny) return null;
   return { home: homeStats, away: awayStats };
 }
@@ -559,21 +628,82 @@ function extractForm(json: EspnSummary): MatchExtras['form'] {
       }));
   };
 
-  const homeTeamId = json.header?.competitions?.[0]?.competitors?.find((c) => c.homeAway === 'home')?.team?.id;
-  const awayTeamId = json.header?.competitions?.[0]?.competitors?.find((c) => c.homeAway === 'away')?.team?.id;
+  const competitors = json.header?.competitions?.[0]?.competitors ?? [];
+  const homeTeamId = competitors.find((c) => c.homeAway === 'home')?.team?.id;
+  const awayTeamId = competitors.find((c) => c.homeAway === 'away')?.team?.id;
   const home = pick(homeTeamId);
   const away = pick(awayTeamId);
   if (home.length === 0 && away.length === 0) return null;
   return { home, away };
 }
 
-function extractH2h(json: EspnSummary): MatchExtras['h2h'] {
-  const series = (json.seasonseries ?? []).find((s) => s.title || s.summary);
-  if (!series || (!series.summary && !series.title)) return null;
+function extractH2h(json: EspnSummary, homeName: string, awayName: string): MatchExtras['h2h'] {
+  const series = json.seasonseries ?? [];
+  const usable = series.filter((s) => s.summary || s.title);
+  if (usable.length === 0) return null;
+
+  // The array can hold several series (e.g. aggregate + per-competition), so
+  // prefer the one whose title names both teams of this match.
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const h = norm(homeName);
+  const a = norm(awayName);
+  const match = usable.find((s) => {
+    const t = norm(s.title ?? '');
+    return t.length > 0 && t.includes(h) && t.includes(a);
+  });
+  const chosen = match ?? usable[0];
+
+  return { title: chosen.title ?? '', summary: chosen.summary ?? '' };
+}
+
+function extractMatchExtras(json: EspnSummary, homeName: string, awayName: string): MatchExtras {
   return {
-    title: series.title ?? '',
-    summary: series.summary ?? '',
+    stats: extractTeamStats(json),
+    form: extractForm(json),
+    h2h: extractH2h(json, homeName, awayName),
   };
+}
+
+/** Everything a match page needs, derived from a single summary response. */
+interface MatchDetailPayload {
+  match: Match | null;
+  events: MatchEvent[];
+  stats: MatchExtras['stats'];
+  form: MatchExtras['form'];
+  h2h: MatchExtras['h2h'];
+}
+
+function buildMatchDetail(league: LeagueDef, json: EspnSummary): MatchDetailPayload {
+  const comp = json.header?.competitions?.[0];
+  const leagueLogo = json.header?.league?.logos?.[0]?.href ?? null;
+  const home = comp?.competitors?.find((c) => c.homeAway === 'home');
+  const away = comp?.competitors?.find((c) => c.homeAway === 'away');
+  const homeName = home?.team?.displayName ?? '';
+  const awayName = away?.team?.displayName ?? '';
+
+  // The summary header carries the same shape as a scoreboard competition, so
+  // the whole match can be rebuilt from it — no league-wide fetch needed.
+  const match = comp
+    ? buildMatch(league, { id: comp.id ?? '', date: comp.date ?? '' }, comp, leagueLogo)
+    : null;
+
+  // `keyEvents` is the complete, consistently shaped timeline (it carries
+  // player names and assists for every competition, including tournaments
+  // where `header.details` is trimmed down to a couple of bare rows). Fall
+  // back to `header.details` only when keyEvents is missing entirely.
+  const rawEvents =
+    Array.isArray(json.keyEvents) && json.keyEvents.length > 0
+      ? json.keyEvents
+      : (comp?.details ?? []);
+  const names: Record<string, string> = {
+    ...(home ? { [home.team.id]: home.team.displayName } : {}),
+    ...(away ? { [away.team.id]: away.team.displayName } : {}),
+  };
+  const events = rawEvents
+    .map((d) => mapEvent(d, names))
+    .filter((e): e is MatchEvent => e !== null);
+
+  return { match, events, ...extractMatchExtras(json, homeName, awayName) };
 }
 
 // ---------------------------------------------------------------------------
@@ -581,8 +711,9 @@ function extractH2h(json: EspnSummary): MatchExtras['h2h'] {
 // ---------------------------------------------------------------------------
 
 export const handler: Handler = async (event: HandlerEvent) => {
+  const origin = event.headers?.origin;
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: corsHeaders, body: '' };
+    return { statusCode: 200, headers: { ...corsHeaders(origin), 'Content-Type': 'text/plain' }, body: '' };
   }
 
   try {
@@ -592,33 +723,38 @@ export const handler: Handler = async (event: HandlerEvent) => {
 
     // GET /livescore?standings=<slug> → league standings
     if (standingsSlug) {
-      if (!LEAGUE_INDEX.has(standingsSlug)) {
-        return jsonResponse(404, { error: 'Unknown league' });
+      const league = getLeague(standingsSlug);
+      if (!league) {
+        return jsonResponse(404, { error: 'Unknown league' }, origin);
       }
       const cacheKey = `standings_${standingsSlug}`;
       const cached = getCached(cacheKey, STANDINGS_CACHE_TTL);
-      if (cached) return jsonResponse(200, { standings: cached });
+      if (cached) return jsonResponse(200, { standings: cached }, origin);
 
-      const standingsUrl = `https://site.web.api.espn.com/apis/v2/sports/soccer/${standingsSlug}/standings`;
-      const json = await fetchJson(standingsUrl, 10000);
-      const league = LEAGUES[LEAGUE_INDEX.get(standingsSlug)!];
+      const json = await fetchJson(`${ESPN_STANDINGS_BASE}/${standingsSlug}/standings`, 6000);
       const standings = json ? parseStandings(json, league.name) : null;
-      if (standings) setCache(cacheKey, standings);
+      if (standings) {
+        setCache(cacheKey, standings);
+      } else {
+        // Keep serving the last good table rather than an empty modal.
+        const stale = getStale(cacheKey) as StandingsData | null;
+        if (stale) return jsonResponse(200, { standings: stale }, origin);
+      }
 
-      return jsonResponse(200, { standings });
+      return jsonResponse(200, { standings }, origin);
     }
 
     // GET /livescore?league=<slug>[&date=YYYY-MM-DD] → single league scoreboard
     if (query.league && !eventId) {
       const slug = query.league;
-      if (!LEAGUE_INDEX.has(slug)) {
-        return jsonResponse(404, { error: 'Unknown league' });
+      const league = getLeague(slug);
+      if (!league) {
+        return jsonResponse(404, { error: 'Unknown league' }, origin);
       }
-      const league = LEAGUES[LEAGUE_INDEX.get(slug)!];
       const dateParam = normalizeDateParam(query.date);
       const cacheKey = `league_${slug}_${dateParam ?? 'today'}`;
       const cached = getCached(cacheKey);
-      if (cached) return jsonResponse(200, { leagues: cached });
+      if (cached) return jsonResponse(200, { leagues: cached }, origin);
 
       const url = dateParam
         ? `${ESPN_BASE}/${slug}/scoreboard?dates=${dateParam.replace(/-/g, '')}`
@@ -627,56 +763,86 @@ export const handler: Handler = async (event: HandlerEvent) => {
       const transformed = json ? transformScoreboard(league, json as EspnScoreboard) : null;
       const leagues = transformed ? [transformed] : [];
       setCache(cacheKey, leagues);
-      return jsonResponse(200, { leagues });
+      return jsonResponse(200, { leagues }, origin);
     }
 
-    // GET /livescore?league=<slug>&event=<id> → single match events
+    // GET /livescore?league=<slug>&event=<id> → full match detail
     if (eventId) {
       const leagueSlug = query.league;
       if (!leagueSlug) {
-        return jsonResponse(400, { error: "Missing 'league' parameter" });
+        return jsonResponse(400, { error: "Missing 'league' parameter" }, origin);
+      }
+      const league = getLeague(leagueSlug);
+      if (!league) {
+        return jsonResponse(404, { error: 'Unknown league' }, origin);
       }
       const cacheKey = `match_${leagueSlug}_${eventId}`;
-      const cached = getCached(cacheKey, MATCH_CACHE_TTL);
-      if (cached) return jsonResponse(200, { events: cached });
+      // Cache the whole payload — caching only `events` used to drop
+      // stats/form/h2h on every cache hit.
+      const cached = getCached(cacheKey, MATCH_CACHE_TTL) as MatchDetailPayload | null;
+      if (cached) return jsonResponse(200, cached, origin);
 
-      const json = await fetchJson(`${ESPN_BASE}/${leagueSlug}/summary?event=${eventId}`, 10000);
-      const summary = json as EspnSummary;
-      const details = summary.header?.competitions?.[0]?.details ?? [];
-      const events = details
-        .map((d) => mapEvent(d))
-        .filter((e): e is MatchEvent => e !== null);
+      const json = await fetchJson(`${ESPN_BASE}/${leagueSlug}/summary?event=${eventId}`, 7000);
+      if (!json) {
+        const stale = getStale(cacheKey) as MatchDetailPayload | null;
+        if (stale) return jsonResponse(200, stale, origin);
+        return jsonResponse(502, { error: 'Match data unavailable' }, origin);
+      }
 
-      setCache(cacheKey, events);
-      const extras = extractMatchExtras(summary);
-      return jsonResponse(200, { events, stats: extras.stats, form: extras.form, h2h: extras.h2h });
+      const detail = buildMatchDetail(league, json as EspnSummary);
+      setCache(cacheKey, detail);
+      return jsonResponse(200, detail, origin);
     }
 
     // GET /livescore?date=YYYY-MM-DD → all leagues' scoreboards for a day
     const dateParam = normalizeDateParam(query.date);
     const mainCacheKey = dateParam ? `livescore_${dateParam}` : 'livescore_main';
     const cached = getCached(mainCacheKey);
-    if (cached) return jsonResponse(200, { leagues: cached });
+    if (cached) return jsonResponse(200, { leagues: cached }, origin);
 
     const scoreboardUrl = (league: LeagueDef) =>
       dateParam
         ? `${ESPN_BASE}/${league.slug}/scoreboard?dates=${dateParam.replace(/-/g, '')}`
         : `${ESPN_BASE}/${league.slug}/scoreboard`;
 
-    const results = await runLimited(LEAGUES, 8, async (league) => {
-      const json = await fetchJson(scoreboardUrl(league));
-      return json ? transformScoreboard(league, json as EspnScoreboard) : null;
-    });
+    // Netlify functions get ~10s. Cap the whole fan-out at 8s, and give each
+    // in-flight request whatever time is left so nothing overruns the budget.
+    const deadline = Date.now() + 8000;
+    const results = await runLimited(
+      LEAGUES,
+      10,
+      async (league) => {
+        const remaining = deadline - Date.now();
+        if (remaining <= 500) return null;
+        // Retry only while we comfortably have time left.
+        const attempts = remaining > 3000 ? 2 : 1;
+        const json = await fetchJson(scoreboardUrl(league), Math.min(4000, remaining), attempts);
+        return json ? transformScoreboard(league, json as EspnScoreboard) : null;
+      },
+      deadline,
+    );
 
     const leagues = results.filter((r): r is LeagueWithMatches => r !== null);
+    const stale = getStale(mainCacheKey) as LeagueWithMatches[] | null;
+
+    // A league that failed this round but succeeded earlier still has useful
+    // (slightly old) data — better than dropping it from the page entirely.
+    if (stale) {
+      const have = new Set(leagues.map((l) => l.slug));
+      for (const past of stale) {
+        if (!have.has(past.slug)) leagues.push(past);
+      }
+    }
+
     sortLeagues(leagues);
 
     setCache(mainCacheKey, leagues);
-    return jsonResponse(200, { leagues });
+    return jsonResponse(200, { leagues }, origin);
   } catch (err) {
     return jsonResponse(
       500,
       { error: err instanceof Error ? err.message : 'Unexpected error' },
+      origin,
     );
   }
 };

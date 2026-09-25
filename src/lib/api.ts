@@ -1,10 +1,11 @@
-import type { LeagueWithMatches, MatchDetailData, MatchEvent, StandingsData } from '../types';
+import type { LeagueWithMatches, Match, MatchDetailData, MatchEvent, StandingsData } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL ?? '/.netlify/functions/livescore';
 
 interface ApiResponse {
   leagues?: LeagueWithMatches[];
   standings?: StandingsData | null;
+  match?: Match | null;
   events?: MatchEvent[];
   stats?: MatchDetailData['stats'];
   form?: MatchDetailData['form'];
@@ -23,24 +24,34 @@ async function getJson(params: Record<string, string>): Promise<ApiResponse> {
   return data;
 }
 
-function filterByStatus(
+export type StatusFilter = 'all' | 'live' | 'finished' | 'scheduled';
+
+/** A half-time match is in play, so it belongs under the "live" filter. */
+export function matchesStatus(m: Match, statusFilter: StatusFilter): boolean {
+  if (statusFilter === 'all') return true;
+  if (statusFilter === 'live') return m.status === 'live' || m.status === 'halftime';
+  return m.status === statusFilter;
+}
+
+export function isInPlay(m: Match): boolean {
+  return m.status === 'live' || m.status === 'halftime';
+}
+
+export function filterByStatus(
   leagues: LeagueWithMatches[],
-  statusFilter: 'all' | 'live' | 'finished' | 'scheduled',
+  statusFilter: StatusFilter,
 ): LeagueWithMatches[] {
   if (statusFilter === 'all') return leagues;
   return leagues
-    .map((l) => ({ ...l, matches: l.matches.filter((m) => m.status === statusFilter) }))
+    .map((l) => ({ ...l, matches: l.matches.filter((m) => matchesStatus(m, statusFilter)) }))
     .filter((l) => l.matches.length > 0);
 }
 
-export async function fetchMatchesByStatus(
-  statusFilter: 'all' | 'live' | 'finished' | 'scheduled',
-  date?: string,
-): Promise<LeagueWithMatches[]> {
+export async function fetchLeagues(date?: string): Promise<LeagueWithMatches[]> {
   const params: Record<string, string> = {};
   if (date) params.date = date;
   const data = await getJson(params);
-  return filterByStatus(data.leagues ?? [], statusFilter);
+  return data.leagues ?? [];
 }
 
 export async function fetchLeague(leagueSlug: string, date?: string): Promise<LeagueWithMatches | null> {
@@ -55,9 +66,17 @@ export async function fetchStandings(leagueSlug: string): Promise<StandingsData 
   return data.standings ?? null;
 }
 
-export async function fetchMatchDetail(leagueSlug: string, eventId: string): Promise<MatchDetailData> {
+/**
+ * One request returns the match itself plus events/stats/form/h2h, so a match
+ * page works for any date (the old two-call approach only found today's games).
+ */
+export async function fetchMatchDetail(
+  leagueSlug: string,
+  eventId: string,
+): Promise<MatchDetailData> {
   const data = await getJson({ league: leagueSlug, event: eventId });
   return {
+    match: data.match ?? null,
     events: data.events ?? [],
     stats: data.stats ?? undefined,
     form: data.form ?? undefined,

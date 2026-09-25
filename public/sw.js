@@ -1,5 +1,5 @@
-const CACHE = 'sholy-livescore-v2';
-const ASSET_CACHE = 'sholy-livescore-assets-v2';
+const CACHE = 'sholy-livescore-v3';
+const ASSET_CACHE = 'sholy-livescore-assets-v3';
 
 self.addEventListener('install', (e) => {
   e.waitUntil(

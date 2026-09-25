@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Radio, CheckCircle2, CalendarDays, LayoutGrid, ChevronLeft, ChevronRight, Star } from 'lucide-react';
 import type { LeagueWithMatches } from '../types';
-import { fetchMatchesByStatus } from '../lib/api';
+import { fetchLeagues, filterByStatus, isInPlay, type StatusFilter } from '../lib/api';
 import SiteHeader from '../components/SiteHeader';
 import LeagueSection from '../components/LeagueSection';
 import SearchBar from '../components/SearchBar';
@@ -41,7 +41,13 @@ export default function HomePage() {
   const [standingsLeague, setStandingsLeague] = useState<{ slug: string; name: string } | null>(null);
   const { favoriteSlugs, toggleFavorite } = useFavorites();
 
-  const loadMatches = useCallback(async (f: Filter, isRefresh = false) => {
+  // Toggling a favourite must not re-fetch: the raw league list is cached in
+  // state and favourites are applied in the memo below.
+  const requestIdRef = useRef(0);
+  const loadMatches = useCallback(async (isRefresh = false) => {
+    // Rapid date changes can resolve out of order; only the newest request may
+    // write to state.
+    const requestId = ++requestIdRef.current;
     if (isRefresh) {
       setRefreshing(true);
     } else {
@@ -49,25 +55,31 @@ export default function HomePage() {
     }
     setError(null);
     try {
-      const data = await fetchMatchesByStatus(f === 'favorites' ? 'all' : f, date);
-      setLeagues(f === 'favorites' ? data.filter((l) => favoriteSlugs.includes(l.slug)) : data);
+      const data = await fetchLeagues(date);
+      if (requestId !== requestIdRef.current) return;
+      setLeagues(data);
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       setError(err instanceof Error ? err.message : 'Failed to load matches');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  }, [date, favoriteSlugs]);
+  }, [date]);
 
   useEffect(() => {
-    loadMatches(filter);
-  }, [filter, loadMatches]);
+    loadMatches();
+  }, [loadMatches]);
+
+  useEffect(() => () => { requestIdRef.current++; }, []);
 
   useEffect(() => {
     if (filter !== 'live' && filter !== 'all') return;
     if (!isToday) return;
     const interval = setInterval(() => {
-      loadMatches(filter, true);
+      loadMatches(true);
     }, 30000);
     return () => clearInterval(interval);
   }, [filter, loadMatches, isToday]);
@@ -86,10 +98,22 @@ export default function HomePage() {
     navigate(`/league/${match.league_slug}/match/${match.id}`);
   };
 
+  // Status, favourites and search are all pure client-side views of one
+  // fetch, so none of them can trigger a network request.
   const filteredLeagues = useMemo(() => {
-    if (!search.trim()) return leagues;
-    const q = search.toLowerCase();
-    return leagues
+    let result = filterByStatus(
+      leagues,
+      filter === 'favorites' ? 'all' : (filter as StatusFilter),
+    );
+
+    if (filter === 'favorites') {
+      result = result.filter((l) => favoriteSlugs.includes(l.slug));
+    }
+
+    const q = search.trim().toLowerCase();
+    if (!q) return result;
+
+    return result
       .map((l) => ({
         ...l,
         matches: l.matches.filter(
@@ -100,7 +124,7 @@ export default function HomePage() {
         ),
       }))
       .filter((l) => l.matches.length > 0);
-  }, [leagues, search]);
+  }, [leagues, search, filter, favoriteSlugs]);
 
   const shiftDate = useCallback((delta: number) => {
     setDate((current) => {
@@ -110,14 +134,16 @@ export default function HomePage() {
     });
   }, []);
 
-  const liveCount = leagues.reduce((acc, l) => acc + l.matches.filter((m) => m.status === 'live').length, 0);
+  // Counts always reflect the full fetched day, not the active filter, so the
+  // numbers don't jump around as the user switches tabs.
+  const liveCount = leagues.reduce((acc, l) => acc + l.matches.filter(isInPlay).length, 0);
   const totalMatches = leagues.reduce((acc, l) => acc + l.matches.length, 0);
 
   return (
     <>
       <SiteHeader
         refreshing={refreshing}
-        onRefresh={() => loadMatches(filter, true)}
+        onRefresh={() => loadMatches(true)}
       >
         <div className="mt-3">
           <SearchBar value={search} onChange={setSearch} />
@@ -201,7 +227,7 @@ export default function HomePage() {
             </div>
             <p className="text-sm font-medium text-red-400">{error}</p>
             <button
-              onClick={() => loadMatches(filter)}
+              onClick={() => loadMatches()}
               className="rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-ink-100 transition-colors hover:bg-white/10"
             >
               Try again
