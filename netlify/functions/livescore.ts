@@ -34,6 +34,8 @@ function jsonResponse(statusCode: number, body: unknown, origin?: string) {
 interface CacheEntry {
   data: unknown;
   timestamp: number;
+  /** Per-entry lifetime; partial results are stored with a short one. */
+  ttl?: number;
 }
 
 const cache = new Map<string, CacheEntry>();
@@ -54,7 +56,7 @@ function pruneCache(): void {
 
 function getCached(key: string, ttl: number = CACHE_TTL): unknown | null {
   const entry = cache.get(key);
-  if (entry && Date.now() - entry.timestamp < ttl) {
+  if (entry && Date.now() - entry.timestamp < (entry.ttl ?? ttl)) {
     return entry.data;
   }
   return null;
@@ -65,8 +67,8 @@ function getStale(key: string): unknown | null {
   return cache.get(key)?.data ?? null;
 }
 
-function setCache(key: string, data: unknown): void {
-  cache.set(key, { data, timestamp: Date.now() });
+function setCache(key: string, data: unknown, ttl: number = CACHE_TTL): void {
+  cache.set(key, { data, timestamp: Date.now(), ttl });
   pruneCache();
 }
 
@@ -78,12 +80,18 @@ async function fetchJson(
   url: string,
   timeoutMs = 5000,
   attempts = 2,
+  externalSignal?: AbortSignal,
 ): Promise<unknown | null> {
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   for (let attempt = 1; attempt <= attempts; attempt++) {
     if (timeoutMs <= 0) return null;
+    if (externalSignal?.aborted) return null;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    // A shared deadline must be able to cancel work already in flight,
+    // otherwise the tail of a fan-out overruns the platform's time limit.
+    const onExternalAbort = () => controller.abort();
+    externalSignal?.addEventListener('abort', onExternalAbort);
     try {
       const resp = await fetch(url, {
         // ESPN's anti-bot layer rejects unknown/non-browser User-Agents (e.g.
@@ -93,12 +101,15 @@ async function fetchJson(
         signal: controller.signal,
       });
       if (resp.ok) return await resp.json();
-      // 4xx won't get better on retry.
-      if (resp.status < 500 && attempt < attempts) await sleep(attempt * 250);
+      // 4xx won't get better on retry, so don't spend budget on it.
+      if (resp.status < 500) return null;
+      if (attempt < attempts) await sleep(attempt * 250);
     } catch {
+      if (externalSignal?.aborted) return null;
       if (attempt < attempts) await sleep(attempt * 250);
     } finally {
       clearTimeout(timer);
+      externalSignal?.removeEventListener('abort', onExternalAbort);
     }
   }
   return null;
@@ -106,33 +117,49 @@ async function fetchJson(
 
 // Runs `fn` over `items` with at most `limit` concurrent tasks. Individual
 // failures never reject the batch — a bad league just comes back null.
-// Stops starting new work once `deadline` has passed so the whole request
-// stays inside the platform's execution limit.
+// Stops starting new work once `deadline` has passed, and aborts anything
+// still in flight at that moment, so the function returns inside the platform's
+// execution limit instead of waiting on the slowest stragglers.
 async function runLimited<T>(
   items: T[],
   limit: number,
-  fn: (item: T) => Promise<unknown>,
+  fn: (item: T, signal: AbortSignal) => Promise<unknown>,
   deadline = Number.POSITIVE_INFINITY,
-): Promise<unknown[]> {
-  const results: unknown[] = new Array(items.length);
+): Promise<Array<unknown> & { timedOut?: boolean }> {
+  const results: unknown[] & { timedOut?: boolean } = new Array(items.length);
+  const controller = new AbortController();
   let cursor = 0;
+  let timedOut = false;
+
+  const timer = Number.isFinite(deadline)
+    ? setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, Math.max(0, deadline - Date.now()))
+    : null;
 
   async function worker() {
     while (true) {
       const index = cursor++;
       if (index >= items.length) return;
-      if (Date.now() >= deadline) return;
+      if (timedOut || controller.signal.aborted) return;
       try {
-        results[index] = await fn(items[index]);
+        results[index] = await fn(items[index], controller.signal);
       } catch {
         results[index] = null;
       }
     }
   }
 
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, () => worker()),
-  );
+  try {
+    await Promise.all(
+      Array.from({ length: Math.min(limit, items.length) }, () => worker()),
+    );
+  } finally {
+    if (timer) clearTimeout(timer);
+    controller.abort();
+  }
+  results.timedOut = timedOut;
   return results;
 }
 
@@ -811,12 +838,12 @@ export const handler: Handler = async (event: HandlerEvent) => {
     const results = await runLimited(
       LEAGUES,
       10,
-      async (league) => {
+      async (league, signal) => {
         const remaining = deadline - Date.now();
         if (remaining <= 500) return null;
         // Retry only while we comfortably have time left.
         const attempts = remaining > 3000 ? 2 : 1;
-        const json = await fetchJson(scoreboardUrl(league), Math.min(4000, remaining), attempts);
+        const json = await fetchJson(scoreboardUrl(league), Math.min(4000, remaining), attempts, signal);
         return json ? transformScoreboard(league, json as EspnScoreboard) : null;
       },
       deadline,
@@ -824,6 +851,10 @@ export const handler: Handler = async (event: HandlerEvent) => {
 
     const leagues = results.filter((r): r is LeagueWithMatches => r !== null);
     const stale = getStale(mainCacheKey) as LeagueWithMatches[] | null;
+    // A partial fan-out must not be served as if it were complete: keep the
+    // previous full result as the stale fallback, and shorten this entry's life
+    // so the next request retries the leagues that didn't make the deadline.
+    const partial = results.timedOut === true;
 
     // A league that failed this round but succeeded earlier still has useful
     // (slightly old) data — better than dropping it from the page entirely.
@@ -836,7 +867,9 @@ export const handler: Handler = async (event: HandlerEvent) => {
 
     sortLeagues(leagues);
 
-    setCache(mainCacheKey, leagues);
+    // Keep a partial result only briefly so the next request re-fetches the
+    // leagues that missed the deadline instead of serving gaps for a full TTL.
+    setCache(mainCacheKey, leagues, partial ? 5_000 : CACHE_TTL);
     return jsonResponse(200, { leagues }, origin);
   } catch (err) {
     return jsonResponse(
