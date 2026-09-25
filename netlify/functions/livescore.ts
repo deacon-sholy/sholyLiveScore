@@ -832,9 +832,10 @@ export const handler: Handler = async (event: HandlerEvent) => {
         ? `${ESPN_BASE}/${league.slug}/scoreboard?dates=${dateParam.replace(/-/g, '')}`
         : `${ESPN_BASE}/${league.slug}/scoreboard`;
 
-    // Netlify functions get ~10s. Cap the whole fan-out at 8s, and give each
-    // in-flight request whatever time is left so nothing overruns the budget.
-    const deadline = Date.now() + 8000;
+    // Netlify functions get ~10s wall clock, and a cold start eats into that
+    // before we even run. Keep the fan-out well under it: the cache serves the
+    // fast path, and anything that misses the deadline is refetched within 5s.
+    const deadline = Date.now() + 6000;
     const results = await runLimited(
       LEAGUES,
       10,
