@@ -1,6 +1,16 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Radio, CheckCircle2, CalendarDays, LayoutGrid, ChevronLeft, ChevronRight, Star } from 'lucide-react';
+import {
+  Radio,
+  CheckCircle2,
+  CalendarDays,
+  LayoutGrid,
+  ChevronLeft,
+  ChevronRight,
+  Star,
+  AlertCircle,
+  SearchX,
+} from 'lucide-react';
 import type { LeagueWithMatches } from '../types';
 import { fetchLeagues, filterByStatus, isInPlay, type StatusFilter } from '../lib/api';
 import SiteHeader from '../components/SiteHeader';
@@ -25,6 +35,29 @@ function toISODate(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+function SkeletonList() {
+  return (
+    <div className="space-y-8" aria-hidden>
+      {[0, 1, 2].map((group) => (
+        <div key={group}>
+          <div className="mb-2.5 flex items-center gap-3">
+            <div className="skeleton h-9 w-9 rounded-xl" />
+            <div className="space-y-1.5">
+              <div className="skeleton h-3.5 w-32 rounded" />
+              <div className="skeleton h-2.5 w-20 rounded" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            {[0, 1, 2].map((row) => (
+              <div key={row} className="skeleton h-[58px] rounded-2xl" />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function HomePage() {
@@ -141,19 +174,16 @@ export default function HomePage() {
 
   return (
     <>
-      <SiteHeader
-        refreshing={refreshing}
-        onRefresh={() => loadMatches(true)}
-      >
-        <div className="mt-3">
+      <SiteHeader refreshing={refreshing} onRefresh={() => loadMatches(true)}>
+        <div className="pb-3 pt-3">
           <SearchBar value={search} onChange={setSearch} />
         </div>
 
-        <div className="mt-3 flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 pb-3">
           <button
             onClick={() => shiftDate(-1)}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/5 bg-white/[0.03] text-ink-300 transition-colors hover:border-white/10 hover:bg-white/[0.06] hover:text-ink-100"
-            title="Previous day"
+            aria-label="Previous day"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-surface text-muted transition-colors hover:border-line-strong hover:text-fg"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -162,12 +192,12 @@ export default function HomePage() {
             {!isToday && (
               <button
                 onClick={() => setDate(todayISO)}
-                className="rounded-xl border border-accent-500/30 bg-accent-500/10 px-3 py-1.5 text-[11px] font-bold text-accent-400 transition-colors hover:bg-accent-500/20"
+                className="rounded-lg border border-accent-500/30 bg-accent-500/10 px-2.5 py-1 text-[11px] font-bold text-accent-600 transition-colors hover:bg-accent-500/20 dark:text-accent-400"
               >
                 Today
               </button>
             )}
-            <span className="text-sm font-bold text-ink-100">
+            <span className="text-sm font-bold text-fg">
               {new Date(`${date}T12:00:00`).toLocaleDateString('en-US', {
                 weekday: 'short',
                 month: 'short',
@@ -178,14 +208,14 @@ export default function HomePage() {
 
           <button
             onClick={() => shiftDate(1)}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/5 bg-white/[0.03] text-ink-300 transition-colors hover:border-white/10 hover:bg-white/[0.06] hover:text-ink-100"
-            title="Next day"
+            aria-label="Next day"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-surface text-muted transition-colors hover:border-line-strong hover:text-fg"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="mt-3 flex gap-2 overflow-x-auto scrollbar-thin">
+        <div className="flex gap-1.5 overflow-x-auto pb-3 no-scrollbar">
           {FILTERS.map((f) => {
             const Icon = f.icon;
             const isActive = filter === f.key;
@@ -193,18 +223,21 @@ export default function HomePage() {
               <button
                 key={f.key}
                 onClick={() => setFilter(f.key)}
-                className={`relative flex flex-shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-300 ${
+                aria-pressed={isActive}
+                className={`flex flex-shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-[13px] font-semibold transition-all ${
                   isActive
-                    ? 'bg-gradient-to-r from-accent-500 to-accent-600 text-white shadow-lg shadow-accent-500/25'
-                    : 'border border-white/5 bg-white/[0.03] text-ink-400 hover:border-white/10 hover:bg-white/[0.06] hover:text-ink-200'
+                    ? 'bg-fg text-canvas shadow-sm'
+                    : 'border border-line bg-surface text-muted hover:border-line-strong hover:text-fg'
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
                 {f.label}
                 {f.key === 'live' && liveCount > 0 && (
-                  <span className={`flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold ${
-                    isActive ? 'bg-white text-accent-600' : 'bg-red-500 text-white'
-                  }`}>
+                  <span
+                    className={`nums flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold ${
+                      isActive ? 'bg-red-500 text-white' : 'bg-red-500/10 text-red-500'
+                    }`}
+                  >
                     {liveCount}
                   </span>
                 )}
@@ -214,88 +247,80 @@ export default function HomePage() {
         </div>
       </SiteHeader>
 
-      <main className="relative mx-auto max-w-3xl px-4 py-6">
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         {loading && leagues.length === 0 ? (
-          <div className="flex min-h-[300px] flex-col items-center justify-center gap-3">
-            <div className="h-9 w-9 animate-spin rounded-full border-2 border-ink-700 border-t-accent-500" />
-            <p className="text-xs font-medium text-ink-400">Loading live scores...</p>
-          </div>
+          <SkeletonList />
         ) : error ? (
-          <div className="flex min-h-[300px] flex-col items-center justify-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/10">
-              <span className="text-2xl">!</span>
-            </div>
-            <p className="text-sm font-medium text-red-400">{error}</p>
-            <button
-              onClick={() => loadMatches()}
-              className="rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-ink-100 transition-colors hover:bg-white/10"
-            >
-              Try again
-            </button>
-          </div>
+          <EmptyState
+            icon={<AlertCircle className="h-7 w-7 text-red-500" />}
+            title="Couldn't load scores"
+            body={error}
+            action={
+              <button
+                onClick={() => loadMatches()}
+                className="rounded-xl bg-fg px-5 py-2.5 text-sm font-semibold text-canvas transition-opacity hover:opacity-85"
+              >
+                Try again
+              </button>
+            }
+          />
         ) : filteredLeagues.length === 0 ? (
-          <div className="flex min-h-[300px] flex-col items-center justify-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.03]">
-              {filter === 'favorites' && favoriteSlugs.length === 0 ? (
-                <Star className="h-8 w-8 text-accent-500" />
+          <EmptyState
+            icon={
+              search ? (
+                <SearchX className="h-7 w-7 text-subtle" />
+              ) : filter === 'favorites' && favoriteSlugs.length === 0 ? (
+                <Star className="h-7 w-7 text-amber-500" />
               ) : (
-                <CalendarDays className="h-8 w-8 text-ink-600" />
-              )}
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-semibold text-ink-200">
-                {search
-                  ? 'No matches match your search'
-                  : filter === 'favorites'
-                    ? favoriteSlugs.length === 0
-                      ? 'No favorite leagues yet'
-                      : 'No matches in your favorite leagues'
-                    : 'No matches found'}
-              </p>
-              <p className="mt-1 text-xs text-ink-400">
-                {search
-                  ? 'Try a different team or league name'
-                  : filter === 'favorites'
-                    ? favoriteSlugs.length === 0
-                      ? 'Tap the ★ on any league to add it here'
-                      : 'Try a different filter'
-                    : 'Try a different filter'}
-              </p>
-            </div>
-          </div>
+                <CalendarDays className="h-7 w-7 text-subtle" />
+              )
+            }
+            title={
+              search
+                ? 'No matches match your search'
+                : filter === 'favorites'
+                  ? favoriteSlugs.length === 0
+                    ? 'No favourite leagues yet'
+                    : 'No matches in your favourite leagues'
+                  : 'No matches found'
+            }
+            body={
+              search
+                ? 'Try a different team or league name'
+                : filter === 'favorites' && favoriteSlugs.length === 0
+                  ? 'Tap the star on any league to add it here'
+                  : 'Try a different filter'
+            }
+          />
         ) : (
           <div className="animate-fade-in">
-            <div className="mb-5 flex items-center gap-4 rounded-xl border border-white/5 bg-white/[0.02] px-4 py-2.5">
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-bold tabular-nums text-white">{totalMatches}</span>
-                <span className="text-xs text-ink-400">matches</span>
-              </div>
-              <div className="h-4 w-px bg-white/10" />
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+            {/* Day summary */}
+            <div className="mb-6 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl border border-line bg-surface px-4 py-3">
+              <Stat label="matches" value={totalMatches} />
+              <span aria-hidden className="hidden h-4 w-px bg-line sm:block" />
+              <Stat label="live" value={liveCount} dot={liveCount > 0} />
+              <span aria-hidden className="hidden h-4 w-px bg-line sm:block" />
+              <Stat label="leagues" value={leagues.length} />
+              {refreshing && (
+                <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-medium text-subtle">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent-500" />
+                  Updating
                 </span>
-                <span className="text-lg font-bold tabular-nums text-white">{liveCount}</span>
-                <span className="text-xs text-ink-400">live</span>
-              </div>
-              <div className="h-4 w-px bg-white/10" />
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-bold tabular-nums text-white">{leagues.length}</span>
-                <span className="text-xs text-ink-400">leagues</span>
-              </div>
+              )}
             </div>
 
-            {filteredLeagues.map((league) => (
-              <LeagueSection
-                key={league.id}
-                league={league}
-                favorite={favoriteSlugs.includes(league.slug)}
-                onToggleFavorite={toggleFavorite}
-                onMatchClick={handleMatchClick}
-                onStandingsClick={(slug, name) => setStandingsLeague({ slug, name })}
-              />
-            ))}
+            <div className="grid gap-x-6 gap-y-7 lg:grid-cols-2">
+              {filteredLeagues.map((league) => (
+                <LeagueSection
+                  key={league.id}
+                  league={league}
+                  favorite={favoriteSlugs.includes(league.slug)}
+                  onToggleFavorite={toggleFavorite}
+                  onMatchClick={handleMatchClick}
+                  onStandingsClick={(slug, name) => setStandingsLeague({ slug, name })}
+                />
+              ))}
+            </div>
           </div>
         )}
       </main>
@@ -308,5 +333,43 @@ export default function HomePage() {
         />
       )}
     </>
+  );
+}
+
+function Stat({ label, value, dot }: { label: string; value: number; dot?: boolean }) {
+  return (
+    <span className="inline-flex items-baseline gap-1.5">
+      {dot && (
+        <span className="relative -translate-y-px flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-70" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+        </span>
+      )}
+      <span className="nums text-base font-bold text-fg">{value}</span>
+      <span className="text-xs text-muted">{label}</span>
+    </span>
+  );
+}
+
+function EmptyState({
+  icon,
+  title,
+  body,
+  action,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  body: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-h-[320px] flex-col items-center justify-center gap-4 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-line bg-surface">{icon}</div>
+      <div>
+        <p className="text-sm font-semibold text-fg">{title}</p>
+        <p className="mt-1 text-xs text-muted">{body}</p>
+      </div>
+      {action}
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft, Star } from 'lucide-react';
+import { AlertCircle, ChevronLeft, Star } from 'lucide-react';
 import type { LeagueWithMatches } from '../types';
 import { fetchLeague } from '../lib/api';
 import SiteHeader from '../components/SiteHeader';
@@ -75,33 +75,32 @@ export default function LeaguePage() {
   return (
     <>
       <SiteHeader>
-        <div className="mt-3 flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-2.5 pb-3 pt-3 text-sm">
           <Link
             to="/"
-            className="flex items-center gap-1 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-ink-400 transition-colors hover:border-white/10 hover:bg-white/[0.06] hover:text-ink-100"
+            className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-line-strong hover:text-fg"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
             All Leagues
           </Link>
-          <span className="truncate text-sm font-bold text-ink-100">{name}</span>
+          <span className="truncate text-sm font-bold text-fg">{name}</span>
         </div>
       </SiteHeader>
 
-      <main className="relative mx-auto max-w-3xl px-4 py-6">
+      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
         {loading && !league ? (
           <div className="flex min-h-[300px] flex-col items-center justify-center gap-3">
-            <div className="h-9 w-9 animate-spin rounded-full border-2 border-ink-700 border-t-accent-500" />
-            <p className="text-xs font-medium text-ink-400">Loading {name}...</p>
+            <div className="space-y-2" aria-hidden>{Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton h-[58px] rounded-2xl" />)}</div>
           </div>
         ) : error ? (
           <div className="flex min-h-[300px] flex-col items-center justify-center gap-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/10">
-              <span className="text-2xl">!</span>
+              <AlertCircle className="h-6 w-6 text-red-500" />
             </div>
-            <p className="text-sm font-medium text-red-400">{error}</p>
+            <p className="text-sm font-medium text-fg">{error}</p>
             <button
               onClick={() => window.location.reload()}
-              className="rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-ink-100 transition-colors hover:bg-white/10"
+              className="rounded-xl bg-fg px-5 py-2.5 text-sm font-semibold text-canvas transition-opacity hover:opacity-85"
             >
               Try again
             </button>
@@ -134,17 +133,17 @@ export default function LeaguePage() {
 
 function NotFound({ slug }: { slug: string }) {
   return (
-    <div className="mx-auto flex min-h-[400px] max-w-3xl flex-col items-center justify-center gap-4 px-4">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.03]">
-        <Star className="h-8 w-8 text-ink-600" />
+    <div className="mx-auto flex min-h-[400px] max-w-3xl flex-col items-center justify-center gap-4 px-4 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-line bg-surface">
+        <Star className="h-6 w-6 text-subtle" />
       </div>
       <div className="text-center">
-        <p className="text-sm font-semibold text-ink-200">League not found</p>
-        <p className="mt-1 text-xs text-ink-400">{slug ? `No league matches '${slug}'` : 'Missing league'}</p>
+        <p className="text-sm font-semibold text-fg">League not found</p>
+        <p className="mt-1 text-xs text-muted">{slug ? `No league matches '${slug}'` : 'Missing league'}</p>
       </div>
       <Link
         to="/"
-        className="rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-ink-100 transition-colors hover:bg-white/10"
+        className="rounded-xl bg-fg px-5 py-2.5 text-sm font-semibold text-canvas transition-opacity hover:opacity-85"
       >
         Back to all scores
       </Link>

@@ -1,53 +1,72 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  /* Light theme is the default so the page is readable before the theme
+     script in index.html runs. `html.dark` opts into the dark palette. */
+  :root {
+    --canvas: 247 249 252;
+    --surface: 255 255 255;
+    --elevated: 255 255 255;
+    --sunken: 241 245 249;
+    --line: 226 232 240;
+    --line-strong: 203 213 225;
+    --fg: 15 23 42;
+    --muted: 71 85 105;
+    --subtle: 100 116 139;
+  }
+
+  html.dark {
+    --canvas: 7 11 20;
+    --surface: 15 22 38;
+    --elevated: 19 28 46;
+    --sunken: 11 17 32;
+    --line: 30 41 59;
+    --line-strong: 51 65 85;
+    --fg: 226 232 240;
+    --muted: 148 163 184;
+    --subtle: 125 138 158;
+  }
+
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
   }
 
   body {
     font-family: 'Inter', system-ui, sans-serif;
-    background: #070b14;
-    color: #e2e8f0;
-    transition: background-color 0.3s ease, color 0.3s ease;
-  }
-
-  html.light body {
-    background: #f8fafc;
-    color: #0f172a;
+    background: rgb(var(--canvas));
+    color: rgb(var(--fg));
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
 
   ::selection {
-    background: rgba(16, 185, 129, 0.3);
-    color: white;
+    background: rgba(16, 185, 129, 0.28);
+    color: rgb(var(--fg));
+  }
+
+  /* Visible keyboard focus everywhere; pointer clicks stay clean. */
+  :focus-visible {
+    outline: 2px solid #10b981;
+    outline-offset: 2px;
+    border-radius: 6px;
   }
 }
 
 @layer utilities {
   .glass {
-    background: rgba(15, 22, 38, 0.7);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-  }
-
-  html.light .glass {
-    background: rgba(255, 255, 255, 0.7);
-    border-bottom-color: rgba(0, 0, 0, 0.05);
-  }
-
-  .glass-card {
-    background: rgba(19, 28, 46, 0.6);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-  }
-
-  html.light .glass-card {
-    background: rgba(255, 255, 255, 0.6);
+    background: rgb(var(--canvas) / 0.82);
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
   }
 
   .text-gradient {
@@ -61,6 +80,18 @@
     box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
   }
 
+  /* Skeleton shimmer used while scores load. */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      rgb(var(--sunken)) 25%,
+      rgb(var(--line)) 37%,
+      rgb(var(--sunken)) 63%
+    );
+    background-size: 1000px 100%;
+    animation: shimmer 1.6s linear infinite;
+  }
+
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -71,12 +102,12 @@
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: rgba(51, 65, 85, 0.5);
+    background: rgb(var(--line-strong) / 0.7);
     border-radius: 3px;
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background: rgba(71, 85, 105, 0.7);
+    background: rgb(var(--subtle) / 0.8);
   }
 
   .animate-delay-100 {
@@ -87,5 +118,31 @@
   }
   .animate-delay-300 {
     animation-delay: 300ms;
+  }
+
+  /* Tabular figures keep scores and clock digits from jittering as they
+     update during a live match. */
+  .nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

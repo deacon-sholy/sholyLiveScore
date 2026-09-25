@@ -35,14 +35,14 @@ export default function ShareButton({ title, text, url }: ShareButtonProps) {
   return (
     <button
       onClick={handleShare}
-      className="group flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-ink-200 transition-all hover:border-white/20 hover:bg-white/10"
+      className="group flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface text-muted transition-colors hover:border-line-strong hover:text-fg sm:w-auto sm:gap-1.5 sm:px-2.5"
     >
       {copied ? (
-        <Check className="h-3.5 w-3.5 text-green-500" />
+        <Check className="h-4 w-4 text-accent-500" />
       ) : (
-        <Share2 className="h-3.5 w-3.5 transition-transform group-hover:scale-110" />
+        <Share2 className="h-4 w-4 transition-transform group-hover:scale-110" />
       )}
-      <span className="hidden sm:inline">{copied ? 'Copied!' : 'Share'}</span>
+      <span className="hidden text-xs font-semibold sm:inline">{copied ? 'Copied' : 'Share'}</span>
     </button>
   );
 }

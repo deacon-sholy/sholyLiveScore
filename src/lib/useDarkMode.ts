@@ -9,14 +9,12 @@ export function useDarkMode() {
 
   useEffect(() => {
     const root = document.documentElement;
-    if (dark) {
-      root.classList.remove('light');
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-      root.classList.add('light');
-    }
+    root.classList.toggle('dark', dark);
+    root.classList.toggle('light', !dark);
     localStorage.setItem('theme', dark ? 'dark' : 'light');
+    // The pre-paint script in index.html listens for this to keep the
+    // browser chrome (theme-color) in step with the palette.
+    window.dispatchEvent(new CustomEvent('themechange', { detail: { dark } }));
   }, [dark]);
 
   const toggle = useCallback(() => setDark((d) => !d), []);

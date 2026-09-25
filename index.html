@@ -17,7 +17,32 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Sholy Scores" />
-    <meta name="theme-color" content="#070b14" />
+    <meta name="theme-color" content="#070b14" id="theme-color-meta" />
+    <script>
+      // Apply the stored theme before first paint so the page never flashes
+      // the wrong palette while React boots.
+      (function () {
+        var DARK = '#070b14';
+        var LIGHT = '#f7f9fc';
+        function paint(dark) {
+          var root = document.documentElement;
+          root.classList.toggle('dark', dark);
+          root.classList.toggle('light', !dark);
+          var meta = document.getElementById('theme-color-meta');
+          if (meta) meta.setAttribute('content', dark ? DARK : LIGHT);
+        }
+        try {
+          var stored = localStorage.getItem('theme');
+          paint(stored ? stored === 'dark' : true);
+        } catch (e) {
+          paint(true);
+        }
+        // Keep the browser chrome in sync when the toggle flips the theme.
+        window.addEventListener('themechange', function (e) {
+          paint(!!(e.detail && e.detail.dark));
+        });
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

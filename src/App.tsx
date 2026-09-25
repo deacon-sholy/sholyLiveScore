@@ -14,25 +14,27 @@ function ScrollToTop() {
 
 function App() {
   return (
-    <div className="min-h-screen bg-ink-950">
+    <div className="relative flex min-h-screen flex-col bg-canvas text-fg">
       {/* Ambient background glow */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-40 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-accent-500/10 blur-[120px]" />
-        <div className="absolute top-1/3 -right-40 h-80 w-80 rounded-full bg-accent-600/5 blur-[100px]" />
+      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <div className="absolute -top-48 left-1/2 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full bg-accent-500/10 blur-[120px]" />
+        <div className="absolute top-1/3 -right-40 h-80 w-80 rounded-full bg-accent-500/[0.07] blur-[100px]" />
+        <div className="absolute bottom-0 -left-32 h-72 w-72 rounded-full bg-sky-500/[0.05] blur-[100px]" />
       </div>
 
       <ScrollToTop />
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/league/:leagueSlug" element={<LeaguePage />} />
-        <Route path="/league/:leagueSlug/match/:matchId" element={<MatchPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <div className="flex-1">
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/league/:leagueSlug" element={<LeaguePage />} />
+          <Route path="/league/:leagueSlug/match/:matchId" element={<MatchPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
 
-      {/* Footer */}
-      <footer className="relative border-t border-white/5 py-6 text-center">
-        <p className="text-xs text-ink-500">
-          Sholy Livescore · Live data from ESPN · Auto-refresh every 30s
+      <footer className="relative border-t border-line py-7 text-center">
+        <p className="text-xs text-muted">
+          Live data from ESPN · Auto-refresh every 30s
         </p>
       </footer>
     </div>

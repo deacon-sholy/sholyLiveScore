@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft } from 'lucide-react';
+import { AlertCircle, ChevronLeft, SearchX } from 'lucide-react';
 import type { Match } from '../types';
 import { fetchMatchDetail } from '../lib/api';
 import SiteHeader from '../components/SiteHeader';
@@ -93,33 +93,33 @@ export default function MatchPage() {
   return (
     <>
       <SiteHeader>
-        <div className="mt-3 flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-2.5 pb-3 pt-3 text-sm">
           <button
             onClick={() => navigate(`/league/${leagueSlug}`)}
-            className="flex items-center gap-1 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-ink-400 transition-colors hover:border-white/10 hover:bg-white/[0.06] hover:text-ink-100"
+            className="inline-flex max-w-[45%] items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-line-strong hover:text-fg"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
             {leagueName(leagueSlug)}
           </button>
-          <span className="truncate text-sm font-bold text-ink-100">{home && away ? `${home} vs ${away}` : 'Match'}</span>
+          <span className="truncate text-sm font-bold text-fg">{home && away ? `${home} vs ${away}` : 'Match'}</span>
         </div>
       </SiteHeader>
 
-      <main className="relative px-4 py-6">
+      <main className="px-4 py-6 sm:px-6">
         {loading && !match ? (
-          <div className="mx-auto flex max-w-2xl min-h-[300px] flex-col items-center justify-center gap-3">
-            <div className="h-9 w-9 animate-spin rounded-full border-2 border-ink-700 border-t-accent-500" />
-            <p className="text-xs font-medium text-ink-400">Loading match...</p>
+          <div className="mx-auto max-w-2xl space-y-4" aria-hidden>
+            <div className="skeleton h-56 rounded-2xl" />
+            <div className="skeleton h-40 rounded-2xl" />
           </div>
         ) : error && !match ? (
           <div className="mx-auto flex max-w-2xl min-h-[300px] flex-col items-center justify-center gap-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/10">
-              <span className="text-2xl">!</span>
+              <AlertCircle className="h-6 w-6 text-red-500" />
             </div>
-            <p className="text-sm font-medium text-red-400">{error}</p>
+            <p className="text-sm font-medium text-fg">{error}</p>
             <button
               onClick={() => window.location.reload()}
-              className="rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-ink-100 transition-colors hover:bg-white/10"
+              className="rounded-xl bg-fg px-5 py-2.5 text-sm font-semibold text-canvas transition-opacity hover:opacity-85"
             >
               Try again
             </button>
@@ -147,16 +147,16 @@ function eventStatus(status: Match['status']): string {
 function NotFound({ slug }: { slug: string }) {
   return (
     <div className="mx-auto flex min-h-[400px] max-w-3xl flex-col items-center justify-center gap-4 px-4">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.03]">
-        <ChevronLeft className="h-8 w-8 text-ink-600" />
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-line bg-surface">
+        <SearchX className="h-6 w-6 text-subtle" />
       </div>
       <div className="text-center">
-        <p className="text-sm font-semibold text-ink-200">Match not found</p>
-        <p className="mt-1 text-xs text-ink-400">This {slug} could not be loaded, or the id is no longer valid.</p>
+        <p className="text-sm font-semibold text-fg">Match not found</p>
+        <p className="mt-1 text-xs text-muted">This {slug} could not be loaded, or the id is no longer valid.</p>
       </div>
       <Link
         to="/"
-        className="rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-ink-100 transition-colors hover:bg-white/10"
+        className="rounded-xl bg-fg px-5 py-2.5 text-sm font-semibold text-canvas transition-opacity hover:opacity-85"
       >
         Back to all scores
       </Link>

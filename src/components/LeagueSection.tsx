@@ -12,75 +12,80 @@ interface LeagueSectionProps {
   onStandingsClick: (leagueSlug: string, leagueName: string) => void;
 }
 
-export default function LeagueSection({ league, favorite, onToggleFavorite, onMatchClick, onStandingsClick }: LeagueSectionProps) {
+export default function LeagueSection({
+  league,
+  favorite,
+  onToggleFavorite,
+  onMatchClick,
+  onStandingsClick,
+}: LeagueSectionProps) {
   const liveCount = league.matches.filter(isInPlay).length;
   const finishedCount = league.matches.filter((m) => m.status === 'finished').length;
   const hasStandings = getLeague(league.slug)?.standings !== false;
 
   return (
-    <div className="mb-6 animate-slide-up">
+    <section className="animate-slide-up">
       {/* League header */}
-      <div className="mb-3 flex items-center gap-3">
-        <div className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/5 bg-white/[0.03]">
+      <div className="mb-2.5 flex items-center gap-3 px-0.5">
+        <span className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-line bg-surface">
           {league.logo ? (
-            <img src={league.logo} alt={league.name} className="h-7 w-7 object-contain" />
+            <img src={league.logo} alt="" loading="lazy" className="h-6 w-6 object-contain" />
           ) : (
-            <span className="text-xs font-bold text-ink-300">{league.name.slice(0, 2)}</span>
+            <span aria-hidden className="text-[10px] font-bold text-muted">
+              {league.name.slice(0, 2)}
+            </span>
           )}
-        </div>
-        <div className="flex flex-col min-w-0">
-          <h2 className="font-display text-sm font-bold text-white truncate">{league.name}</h2>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-ink-400">{league.country}</span>
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate font-display text-sm font-bold leading-tight text-fg">{league.name}</h2>
+          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted">
+            <span className="truncate">{league.country}</span>
             {liveCount > 0 && (
-              <span className="flex items-center gap-1 text-[11px] font-medium text-red-400">
+              <span className="inline-flex flex-shrink-0 items-center gap-1 font-semibold text-red-500">
                 <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-70" />
                   <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
                 </span>
                 {liveCount} live
               </span>
             )}
-            {finishedCount > 0 && liveCount === 0 && (
-              <span className="text-[11px] text-ink-500">{finishedCount} finished</span>
-            )}
+            {liveCount === 0 && finishedCount > 0 && <span className="flex-shrink-0">{finishedCount} finished</span>}
           </div>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+
+        <div className="flex flex-shrink-0 items-center gap-1.5">
+          {hasStandings && (
+            <button
+              onClick={() => onStandingsClick(league.slug, league.name)}
+              aria-label={`${league.name} standings`}
+              className="flex h-7 items-center gap-1.5 rounded-lg border border-line bg-surface px-2 text-[11px] font-semibold text-muted transition-colors hover:border-accent-500/40 hover:bg-accent-500/5 hover:text-accent-600 dark:hover:text-accent-400"
+            >
+              <Trophy className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Table</span>
+            </button>
+          )}
           <button
             onClick={() => onToggleFavorite(league.slug)}
-            title={favorite ? 'Remove from My Leagues' : 'Add to My Leagues'}
-            className={`flex h-7 w-7 items-center justify-center rounded-lg border transition-all ${
+            aria-pressed={favorite}
+            aria-label={favorite ? `Remove ${league.name} from My Leagues` : `Add ${league.name} to My Leagues`}
+            className={`flex h-7 w-7 items-center justify-center rounded-lg border transition-colors ${
               favorite
-                ? 'border-amber-500/40 bg-amber-500/15 text-amber-400'
-                : 'border-white/5 bg-white/[0.03] text-ink-500 hover:border-amber-500/30 hover:bg-amber-500/5 hover:text-amber-400'
+                ? 'border-amber-500/40 bg-amber-500/15 text-amber-500'
+                : 'border-line bg-surface text-subtle hover:border-amber-500/40 hover:text-amber-500'
             }`}
           >
             <Star className="h-3.5 w-3.5" fill={favorite ? 'currentColor' : 'none'} />
           </button>
-          {hasStandings && (
-            <button
-              onClick={() => onStandingsClick(league.slug, league.name)}
-              className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-semibold text-ink-400 transition-all hover:border-accent-500/30 hover:bg-accent-500/5 hover:text-accent-400"
-            >
-              <Trophy className="h-3 w-3" />
-              Table
-            </button>
-          )}
-          <div className="flex h-7 min-w-7 items-center justify-center rounded-lg border border-white/5 bg-white/[0.03] px-2 text-[11px] font-semibold text-ink-400">
-            {league.matches.length}
-          </div>
         </div>
       </div>
 
       {/* Matches */}
-      <div className="flex flex-col gap-2.5">
-        {league.matches.map((match, idx) => (
-          <div key={match.id} style={{ animationDelay: `${idx * 50}ms` }}>
-            <MatchCard match={match} onClick={() => onMatchClick(match.id)} />
-          </div>
+      <div className="flex flex-col gap-2">
+        {league.matches.map((match) => (
+          <MatchCard key={match.id} match={match} onClick={() => onMatchClick(match.id)} />
         ))}
       </div>
-    </div>
+    </section>
   );
 }
