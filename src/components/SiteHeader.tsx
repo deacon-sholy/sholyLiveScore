@@ -14,9 +14,11 @@ export default function SiteHeader({ refreshing, onRefresh, children }: SiteHead
   const { dark, toggle: toggleDark } = useDarkMode();
 
   return (
-    <header className="sticky top-0 z-50 border-b border-line glass">
+    // The header is pinned, so it carries the top safe-area inset itself; the
+    // glass background still covers the notch/status bar area.
+    <header className="header-pinned safe-t sticky top-0 z-50 border-b border-line glass">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <div className="flex h-14 items-center justify-between gap-3">
+        <div className="flex h-14 items-center justify-between gap-2 sm:gap-3">
           <Link to="/" className="group flex min-w-0 items-center gap-2.5" aria-label="Sholy Livescore home">
             <span className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent-400 to-accent-600 shadow-lg shadow-accent-500/25 transition-transform group-hover:scale-105">
               <Zap className="h-[18px] w-[18px] text-white" fill="white" />
@@ -25,7 +27,9 @@ export default function SiteHeader({ refreshing, onRefresh, children }: SiteHead
               <span className="font-display block truncate text-[15px] font-extrabold leading-none tracking-tight text-fg">
                 Sholy <span className="text-gradient">Livescore</span>
               </span>
-              <span className="mt-1 block text-[10px] font-medium leading-none text-muted">
+              {/* Dropped on narrow phones so the wordmark never competes with
+                  the action buttons for horizontal space. */}
+              <span className="mt-1 hidden text-[10px] font-medium leading-none text-muted sm:block">
                 Live football scores
               </span>
             </span>

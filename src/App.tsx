@@ -14,7 +14,11 @@ function ScrollToTop() {
 
 function App() {
   return (
-    <div className="relative flex min-h-screen flex-col bg-canvas text-fg">
+    // Safe-area insets live on this wrapper (it has no padding utilities of its
+    // own, so nothing can override them) and min-h-dvh keeps the footer
+    // reachable on mobile browsers where 100vh includes the space hidden
+    // behind the collapsing URL bar.
+    <div className="safe-x safe-b relative flex min-h-screen min-h-dvh flex-col bg-canvas text-fg">
       {/* Ambient background glow */}
       <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute -top-48 left-1/2 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full bg-accent-500/10 blur-[120px]" />
@@ -32,6 +36,8 @@ function App() {
         </Routes>
       </div>
 
+      {/* The footer is the last thing on the page, so the home-indicator /
+          gesture bar clearance comes from `safe-b` on the wrapper above. */}
       <footer className="relative border-t border-line py-7 text-center">
         <p className="text-xs text-muted">
           Live data from ESPN · Auto-refresh every 30s

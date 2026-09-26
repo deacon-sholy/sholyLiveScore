@@ -24,6 +24,23 @@ netlify deploy --dir=dist --functions=netlify/functions --prod --site ecbf0521-f
 
 `--no-build` is required because the `netlify.toml` build command breaks CLI deploys.
 
+## Android app
+
+`android/` is a plain Gradle project (`applicationId com.sholylivescore.scores`, minSdk 24, targetSdk 35) that wraps the deployed site in a WebView. It loads the production origin rather than bundling the build, so the app always shows the current deploy and the API calls stay same-origin.
+
+Requires a JDK (17+) and the Android SDK. Point `android/local.properties` at your SDK (`sdk.dir=...`) if it is not found automatically, then:
+
+```
+set JAVA_HOME=<path-to-jdk>
+.\android\gradlew.bat -p android assembleDebug
+```
+
+The APK lands in `android/app/build/outputs/apk/debug/app-debug.apk`. A copy is kept at the repo root as `SholyScores-1.0.0-debug.apk` for sideloading; it is debug-signed, so it is not distributable as-is.
+
+### How insets are handled
+
+Target SDK 35 draws the app behind the status and navigation bars, so the activity opts into edge-to-edge and the WebView pads itself by the system-bar, display-cutout and IME insets. Because the insets are applied natively, the page is told to stand down: the shell adds a `native-shell` class to `<html>`, and the `.safe-t` / `.safe-b` / `.safe-x` helpers in `src/index.css` zero themselves out under it. In a mobile browser those same helpers use `env(safe-area-inset-*)`, so each surface applies the insets exactly once. Before Android 11 the window still fits its own content, so the native padding is skipped to avoid doubling it.
+
 ## Operator checklist — items that need a human
 
 These only need your account-doable actions. Until they're done, deploys stay manual.

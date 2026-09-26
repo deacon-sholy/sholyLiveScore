@@ -24,9 +24,13 @@ export default function LeagueSection({
   const hasStandings = getLeague(league.slug)?.standings !== false;
 
   return (
-    <section className="animate-slide-up">
+    // min-w-0 is load-bearing: as a grid item the automatic minimum size is the
+    // section's min-content width, and the nowrap team names inside the match
+    // cards make that far wider than a phone. Without it the whole home grid
+    // overflows the viewport horizontally.
+    <section className="animate-slide-up min-w-0">
       {/* League header */}
-      <div className="mb-2.5 flex items-center gap-3 px-0.5">
+      <div className="mb-2.5 flex items-center gap-2.5 px-0.5 sm:gap-3">
         <span className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-line bg-surface">
           {league.logo ? (
             <img src={league.logo} alt="" loading="lazy" className="h-6 w-6 object-contain" />

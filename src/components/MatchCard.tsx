@@ -54,9 +54,17 @@ function TeamLogo({
   color: string | null;
   size?: 'sm' | 'md' | 'lg';
 }) {
-  const dims = size === 'lg' ? 'h-14 w-14' : size === 'md' ? 'h-10 w-10' : 'h-7 w-7';
-  const imgDims = size === 'lg' ? 'h-10 w-10' : size === 'md' ? 'h-7 w-7' : 'h-5 w-5';
-  const fontSize = size === 'lg' ? 'text-sm' : size === 'md' ? 'text-[11px]' : 'text-[9px]';
+  // Narrow phones give the two team columns very little room, so the crest
+  // shrinks before the name does.
+  const dims =
+    size === 'lg'
+      ? 'h-14 w-14'
+      : size === 'md'
+        ? 'h-10 w-10'
+        : 'h-6 w-6 sm:h-7 sm:w-7';
+  const imgDims =
+    size === 'lg' ? 'h-10 w-10' : size === 'md' ? 'h-7 w-7' : 'h-[18px] w-[18px] sm:h-5 sm:w-5';
+  const fontSize = size === 'lg' ? 'text-sm' : size === 'md' ? 'text-[11px]' : 'text-[8px] sm:text-[9px]';
 
   if (logo) {
     return (
@@ -104,9 +112,9 @@ export default function MatchCard({ match, onClick }: MatchCardProps) {
     >
       {isLive && <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-red-400 to-red-600" />}
 
-      <div className="flex items-center gap-3 px-3.5 py-3">
+      <div className="flex items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-3.5 sm:py-3">
         {/* Home */}
-        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
           <TeamLogo logo={home.logo} shortName={home.short_name ?? home.name} color={home.color} />
           <span className={`truncate text-[13px] font-semibold leading-tight sm:text-sm ${isFinished ? 'text-muted' : 'text-fg'}`}>
             {home.name}
@@ -114,7 +122,7 @@ export default function MatchCard({ match, onClick }: MatchCardProps) {
         </div>
 
         {/* Score / kickoff */}
-        <div className="flex w-[74px] flex-shrink-0 flex-col items-center gap-1">
+        <div className="flex w-[58px] flex-shrink-0 flex-col items-center gap-1 sm:w-[74px]">
           {match.status === 'scheduled' ? (
             <>
               <span className="text-[11px] font-semibold uppercase tracking-wider text-subtle">vs</span>
@@ -133,7 +141,7 @@ export default function MatchCard({ match, onClick }: MatchCardProps) {
         </div>
 
         {/* Away */}
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-2.5">
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-2.5">
           <span className={`truncate text-[13px] font-semibold leading-tight sm:text-sm ${isFinished ? 'text-muted' : 'text-fg'}`}>
             {away.name}
           </span>
@@ -143,7 +151,7 @@ export default function MatchCard({ match, onClick }: MatchCardProps) {
 
       {/* Event chips */}
       {(goals.length > 0 || yellowCards.length > 0 || redCards.length > 0) && (
-        <div className="flex items-center gap-2.5 border-t border-line px-3.5 py-1.5">
+        <div className="flex items-center gap-2.5 border-t border-line px-3 py-1.5 sm:px-3.5">
           {goals.length > 0 && (
             <span className="nums inline-flex items-center gap-1 text-[10px] font-bold text-accent-600 dark:text-accent-400">
               <span className="h-1.5 w-1.5 rounded-full bg-accent-500" />

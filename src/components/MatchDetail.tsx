@@ -47,10 +47,12 @@ function EventRow({
   );
 
   return (
-    <li className="relative flex items-center gap-3 px-4 py-2.5">
-      {/* Timeline spine */}
-      <span aria-hidden className="absolute bottom-0 left-[35px] top-0 w-px bg-line" />
-      {dotClass && <span aria-hidden className={`absolute left-[31px] top-1/2 h-2 w-2 -translate-y-1/2 rounded-full ring-4 ring-surface ${dotClass}`} />}
+    <li className="relative flex items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4">
+      {/* Timeline spine. Centred on the minute badge, which sits between the
+          two team columns, so it has to track the container rather than sit at
+          a fixed offset. */}
+      <span aria-hidden className="absolute bottom-0 left-1/2 top-0 w-px -translate-x-1/2 bg-line" />
+      {dotClass && <span aria-hidden className={`absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full ring-4 ring-surface ${dotClass}`} />}
 
       <div className="flex min-w-0 flex-1 justify-end text-right">
         {isHome && (
@@ -100,9 +102,9 @@ function TeamLogo({
   color: string | null;
   size?: 'md' | 'lg';
 }) {
-  const dims = size === 'lg' ? 'h-16 w-16 sm:h-20 sm:w-20' : 'h-7 w-7';
-  const imgDims = size === 'lg' ? 'h-11 w-11 sm:h-14 sm:w-14' : 'h-5 w-5';
-  const fontSize = size === 'lg' ? 'text-base sm:text-lg' : 'text-[10px]';
+  const dims = size === 'lg' ? 'h-14 w-14 sm:h-20 sm:w-20' : 'h-7 w-7';
+  const imgDims = size === 'lg' ? 'h-10 w-10 sm:h-14 sm:w-14' : 'h-5 w-5';
+  const fontSize = size === 'lg' ? 'text-sm sm:text-lg' : 'text-[10px]';
 
   if (logo) {
     return (
@@ -123,14 +125,14 @@ function TeamLogo({
 
 function ScoreDisplay({ home, away, isLive }: { home: number; away: number; isLive: boolean }) {
   return (
-    <div className="flex items-center gap-2.5 sm:gap-4">
-      <span className={`nums text-5xl font-extrabold leading-none tracking-tight sm:text-6xl ${isLive ? 'text-fg' : 'text-muted'}`}>
+    <div className="flex items-center gap-2 sm:gap-4">
+      <span className={`nums text-[2.5rem] font-extrabold leading-none tracking-tight sm:text-6xl ${isLive ? 'text-fg' : 'text-muted'}`}>
         {home}
       </span>
       <span aria-hidden className="text-2xl font-light leading-none text-subtle sm:text-3xl">
         :
       </span>
-      <span className={`nums text-5xl font-extrabold leading-none tracking-tight sm:text-6xl ${isLive ? 'text-fg' : 'text-muted'}`}>
+      <span className={`nums text-[2.5rem] font-extrabold leading-none tracking-tight sm:text-6xl ${isLive ? 'text-fg' : 'text-muted'}`}>
         {away}
       </span>
     </div>
@@ -162,8 +164,8 @@ function StatRow({
   const fmt = (v: number | null) => (v === null ? '–' : isPercent ? `${v}%` : `${v}`);
 
   return (
-    <div className="flex items-center gap-3 py-2">
-      <span className={`nums w-10 flex-shrink-0 text-right text-[13px] font-bold ${missing ? 'text-subtle' : 'text-fg'}`}>
+    <div className="flex items-center gap-2 py-2 sm:gap-3">
+      <span className={`nums w-8 flex-shrink-0 text-right text-[13px] font-bold sm:w-10 ${missing ? 'text-subtle' : 'text-fg'}`}>
         {fmt(home)}
       </span>
       <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-sunken">
@@ -179,10 +181,10 @@ function StatRow({
           </>
         )}
       </div>
-      <span className={`nums w-10 flex-shrink-0 text-[13px] font-bold ${missing ? 'text-subtle' : 'text-fg'}`}>
+      <span className={`nums w-8 flex-shrink-0 text-[13px] font-bold sm:w-10 ${missing ? 'text-subtle' : 'text-fg'}`}>
         {fmt(away)}
       </span>
-      <span className="w-[74px] flex-shrink-0 text-right text-[10px] font-medium uppercase leading-tight tracking-wide text-muted">
+      <span className="w-[58px] flex-shrink-0 text-right text-[10px] font-medium uppercase leading-tight tracking-wide text-muted sm:w-[74px]">
         {label}
       </span>
     </div>
@@ -253,7 +255,9 @@ export default function MatchDetail({ match, onBack }: MatchDetailProps) {
   const kickoffTime = kickoffDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
   return (
-    <div className="mx-auto max-w-2xl animate-fade-in px-4 py-6 sm:px-6">
+    // Horizontal padding comes from the page's <main>; only vertical spacing
+    // belongs here.
+    <div className="mx-auto max-w-2xl animate-fade-in">
       <button
         onClick={onBack}
         className="group mb-4 inline-flex items-center gap-2 text-sm font-medium text-muted transition-colors hover:text-fg"
@@ -278,8 +282,8 @@ export default function MatchDetail({ match, onBack }: MatchDetailProps) {
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-3 px-4 py-8 sm:px-8 sm:py-10">
-          <div className="flex min-w-0 flex-1 flex-col items-center gap-2.5">
+        <div className="flex items-center justify-between gap-2 px-3 py-6 sm:gap-3 sm:px-8 sm:py-10">
+          <div className="flex min-w-0 flex-1 flex-col items-center gap-2 sm:gap-2.5">
             <TeamLogo
               logo={homeTeam.logo}
               name={homeTeam.name}
@@ -287,7 +291,7 @@ export default function MatchDetail({ match, onBack }: MatchDetailProps) {
               color={homeTeam.color}
               size="lg"
             />
-            <span className="max-w-[110px] truncate text-center text-xs font-bold text-fg sm:text-sm">{homeTeam.name}</span>
+            <span className="w-full truncate text-center text-xs font-bold text-fg sm:text-sm">{homeTeam.name}</span>
           </div>
 
           <div className="flex flex-shrink-0 flex-col items-center gap-3">
@@ -329,7 +333,7 @@ export default function MatchDetail({ match, onBack }: MatchDetailProps) {
             )}
           </div>
 
-          <div className="flex min-w-0 flex-1 flex-col items-center gap-2.5">
+          <div className="flex min-w-0 flex-1 flex-col items-center gap-2 sm:gap-2.5">
             <TeamLogo
               logo={awayTeam.logo}
               name={awayTeam.name}
@@ -337,7 +341,7 @@ export default function MatchDetail({ match, onBack }: MatchDetailProps) {
               color={awayTeam.color}
               size="lg"
             />
-            <span className="max-w-[110px] truncate text-center text-xs font-bold text-fg sm:text-sm">{awayTeam.name}</span>
+            <span className="w-full truncate text-center text-xs font-bold text-fg sm:text-sm">{awayTeam.name}</span>
           </div>
         </div>
       </div>

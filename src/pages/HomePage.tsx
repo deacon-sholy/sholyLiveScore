@@ -175,29 +175,29 @@ export default function HomePage() {
   return (
     <>
       <SiteHeader refreshing={refreshing} onRefresh={() => loadMatches(true)}>
-        <div className="pb-3 pt-3">
+        <div className="pb-2.5 pt-2.5 sm:pb-3 sm:pt-3">
           <SearchBar value={search} onChange={setSearch} />
         </div>
 
-        <div className="flex items-center justify-between gap-2 pb-3">
+        <div className="flex items-center justify-between gap-2 pb-2.5 sm:pb-3">
           <button
             onClick={() => shiftDate(-1)}
             aria-label="Previous day"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-surface text-muted transition-colors hover:border-line-strong hover:text-fg"
+            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-muted transition-colors hover:border-line-strong hover:text-fg"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             {!isToday && (
               <button
                 onClick={() => setDate(todayISO)}
-                className="rounded-lg border border-accent-500/30 bg-accent-500/10 px-2.5 py-1 text-[11px] font-bold text-accent-600 transition-colors hover:bg-accent-500/20 dark:text-accent-400"
+                className="flex-shrink-0 rounded-lg border border-accent-500/30 bg-accent-500/10 px-2.5 py-1 text-[11px] font-bold text-accent-600 transition-colors hover:bg-accent-500/20 dark:text-accent-400"
               >
                 Today
               </button>
             )}
-            <span className="text-sm font-bold text-fg">
+            <span className="truncate text-sm font-bold text-fg">
               {new Date(`${date}T12:00:00`).toLocaleDateString('en-US', {
                 weekday: 'short',
                 month: 'short',
@@ -209,13 +209,14 @@ export default function HomePage() {
           <button
             onClick={() => shiftDate(1)}
             aria-label="Next day"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-surface text-muted transition-colors hover:border-line-strong hover:text-fg"
+            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-muted transition-colors hover:border-line-strong hover:text-fg"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="flex gap-1.5 overflow-x-auto pb-3 no-scrollbar">
+        {/* Scrolls sideways on narrow phones rather than wrapping. */}
+        <div className="flex gap-1.5 overflow-x-auto pb-2.5 no-scrollbar sm:pb-3">
           {FILTERS.map((f) => {
             const Icon = f.icon;
             const isActive = filter === f.key;
@@ -224,7 +225,7 @@ export default function HomePage() {
                 key={f.key}
                 onClick={() => setFilter(f.key)}
                 aria-pressed={isActive}
-                className={`flex flex-shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-[13px] font-semibold transition-all ${
+                className={`flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 text-[13px] font-semibold transition-all sm:px-3.5 ${
                   isActive
                     ? 'bg-fg text-canvas shadow-sm'
                     : 'border border-line bg-surface text-muted hover:border-line-strong hover:text-fg'
@@ -295,7 +296,7 @@ export default function HomePage() {
         ) : (
           <div className="animate-fade-in">
             {/* Day summary */}
-            <div className="mb-6 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl border border-line bg-surface px-4 py-3">
+            <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-2xl border border-line bg-surface px-3.5 py-2.5 sm:gap-x-5 sm:gap-y-2 sm:px-4 sm:py-3">
               <Stat label="matches" value={totalMatches} />
               <span aria-hidden className="hidden h-4 w-px bg-line sm:block" />
               <Stat label="live" value={liveCount} dot={liveCount > 0} />

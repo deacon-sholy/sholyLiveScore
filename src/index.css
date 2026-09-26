@@ -63,6 +63,47 @@
 }
 
 @layer utilities {
+  /* Safe-area helpers. `viewport-fit=cover` in index.html makes the page fill
+     the whole display, so chrome that touches an edge has to add these back.
+     env() resolves to 0 on desktop and on non-notched phones. */
+  .safe-t {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-b {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-x {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* The Android shell insets the WebView natively, so the helpers above must
+     not add the same padding again inside the app. */
+  .native-shell .safe-t {
+    padding-top: 0;
+  }
+
+  .native-shell .safe-b {
+    padding-bottom: 0;
+  }
+
+  .native-shell .safe-x {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* The header carries the search field, the day stepper and the status
+     filters. Pinned, that is fine on a tall phone, but on a landscape screen it
+     would leave ~180px of content. Below 520px of viewport height it scrolls
+     away with the page instead. */
+  @media (max-height: 520px) {
+    .header-pinned {
+      position: static;
+    }
+  }
+
   .glass {
     background: rgb(var(--canvas) / 0.82);
     backdrop-filter: saturate(180%) blur(16px);

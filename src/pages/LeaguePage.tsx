@@ -75,19 +75,19 @@ export default function LeaguePage() {
   return (
     <>
       <SiteHeader>
-        <div className="flex items-center gap-2.5 pb-3 pt-3 text-sm">
+        <div className="flex items-center gap-2 pb-2.5 pt-2.5 text-sm sm:pb-3 sm:pt-3">
           <Link
             to="/"
-            className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-line-strong hover:text-fg"
+            className="inline-flex flex-shrink-0 items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-line-strong hover:text-fg"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
             All Leagues
           </Link>
-          <span className="truncate text-sm font-bold text-fg">{name}</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-bold text-fg">{name}</span>
         </div>
       </SiteHeader>
 
-      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+      <main className="mx-auto max-w-3xl px-4 py-5 sm:px-6 sm:py-6">
         {loading && !league ? (
           <div className="flex min-h-[300px] flex-col items-center justify-center gap-3">
             <div className="space-y-2" aria-hidden>{Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton h-[58px] rounded-2xl" />)}</div>

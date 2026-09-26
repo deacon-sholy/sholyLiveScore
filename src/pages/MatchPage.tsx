@@ -93,19 +93,21 @@ export default function MatchPage() {
   return (
     <>
       <SiteHeader>
-        <div className="flex items-center gap-2.5 pb-3 pt-3 text-sm">
+        <div className="flex items-center gap-2 pb-2.5 pt-2.5 text-sm sm:pb-3 sm:pt-3">
           <button
             onClick={() => navigate(`/league/${leagueSlug}`)}
-            className="inline-flex max-w-[45%] items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-line-strong hover:text-fg"
+            className="inline-flex max-w-[45%] min-w-0 items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-line-strong hover:text-fg"
           >
-            <ChevronLeft className="h-3.5 w-3.5" />
-            {leagueName(leagueSlug)}
+            <ChevronLeft className="h-3.5 w-3.5 flex-shrink-0" />
+            <span className="truncate">{leagueName(leagueSlug)}</span>
           </button>
-          <span className="truncate text-sm font-bold text-fg">{home && away ? `${home} vs ${away}` : 'Match'}</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-bold text-fg">
+            {home && away ? `${home} vs ${away}` : 'Match'}
+          </span>
         </div>
       </SiteHeader>
 
-      <main className="px-4 py-6 sm:px-6">
+      <main className="px-4 py-5 sm:px-6 sm:py-6">
         {loading && !match ? (
           <div className="mx-auto max-w-2xl space-y-4" aria-hidden>
             <div className="skeleton h-56 rounded-2xl" />

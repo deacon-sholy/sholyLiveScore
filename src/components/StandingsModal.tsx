@@ -74,10 +74,15 @@ export default function StandingsModal({ leagueSlug, leagueName, onClose }: Stan
         role="dialog"
         aria-modal="true"
         aria-label={`${leagueName} standings`}
-        className="relative z-10 flex max-h-[85vh] w-full max-w-lg animate-scale-in flex-col overflow-hidden rounded-t-3xl border border-line bg-elevated shadow-2xl sm:rounded-2xl"
+        className="safe-b relative z-10 flex max-h-[88vh] max-h-[88dvh] w-full max-w-lg animate-scale-in flex-col overflow-hidden rounded-t-3xl border border-line bg-elevated shadow-2xl sm:max-h-[85vh] sm:rounded-2xl"
       >
+        {/* Drag affordance for the mobile bottom sheet. */}
+        <div aria-hidden className="flex justify-center pt-2 sm:hidden">
+          <span className="h-1 w-9 rounded-full bg-line-strong" />
+        </div>
+
         {/* Header */}
-        <div className="flex flex-shrink-0 items-center justify-between border-b border-line px-4 py-3.5">
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-line px-4 py-3 sm:py-3.5">
           <div className="flex min-w-0 items-center gap-2.5">
             <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-accent-500/10">
               <Trophy className="h-4 w-4 text-accent-500" />
@@ -119,8 +124,10 @@ export default function StandingsModal({ leagueSlug, leagueName, onClose }: Stan
           </div>
         )}
 
-        {/* Content */}
-        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+        {/* Content. Eight columns do not fit a 320px phone, so the table keeps
+            a minimum width and scrolls sideways instead of crushing the team
+            names into a single character. */}
+        <div className="min-h-0 flex-1 overflow-auto scrollbar-thin overscroll-contain">
           {loading ? (
             <div className="space-y-2 p-4" aria-hidden>
               {Array.from({ length: 8 }).map((_, i) => (
@@ -133,17 +140,17 @@ export default function StandingsModal({ leagueSlug, leagueName, onClose }: Stan
               <p className="text-xs text-muted">This league may not have a table</p>
             </div>
           ) : group ? (
-            <table className="w-full text-left">
+            <table className="w-full min-w-[300px] text-left">
               <thead className="sticky top-0 z-10 bg-elevated">
                 <tr className="border-b border-line text-[10px] font-bold uppercase tracking-wider text-subtle">
-                  <th scope="col" className="w-9 px-3 py-2.5 text-center">#</th>
+                  <th scope="col" className="w-8 px-2 py-2.5 text-center sm:w-9 sm:px-3">#</th>
                   <th scope="col" className="py-2.5">Team</th>
-                  <th scope="col" className="w-8 py-2.5 text-center">P</th>
-                  <th scope="col" className="w-8 py-2.5 text-center">W</th>
-                  <th scope="col" className="w-8 py-2.5 text-center">D</th>
-                  <th scope="col" className="w-8 py-2.5 text-center">L</th>
-                  <th scope="col" className="w-10 py-2.5 text-center">GD</th>
-                  <th scope="col" className="w-11 py-2.5 pr-3 text-center">Pts</th>
+                  <th scope="col" className="w-7 py-2.5 text-center sm:w-8">P</th>
+                  <th scope="col" className="w-7 py-2.5 text-center sm:w-8">W</th>
+                  <th scope="col" className="w-7 py-2.5 text-center sm:w-8">D</th>
+                  <th scope="col" className="w-7 py-2.5 text-center sm:w-8">L</th>
+                  <th scope="col" className="w-9 py-2.5 text-center sm:w-10">GD</th>
+                  <th scope="col" className="w-10 py-2.5 pr-2 text-center sm:w-11 sm:pr-3">Pts</th>
                 </tr>
               </thead>
               <tbody>
@@ -160,7 +167,7 @@ export default function StandingsModal({ leagueSlug, leagueName, onClose }: Stan
                           : 'border-l-2 border-l-transparent';
                   return (
                     <tr key={`${team.position}-${team.name}`} className={`border-b border-line/50 ${zone} transition-colors hover:bg-sunken/60`}>
-                      <td className="nums py-2.5 pl-3 text-center text-[13px] font-bold text-muted">{team.position}</td>
+                      <td className="nums py-2.5 pl-2 text-center text-[13px] font-bold text-muted sm:pl-3">{team.position}</td>
                       <td className="truncate py-2.5 pr-2 text-[13px] font-semibold text-fg">{team.name}</td>
                       <td className="nums py-2.5 text-center text-[13px] text-muted">{team.played}</td>
                       <td className="nums py-2.5 text-center text-[13px] text-muted">{team.wins}</td>
@@ -169,7 +176,7 @@ export default function StandingsModal({ leagueSlug, leagueName, onClose }: Stan
                       <td className={`nums py-2.5 text-center text-[13px] font-semibold ${gd > 0 ? 'text-accent-600 dark:text-accent-400' : gd < 0 ? 'text-red-500' : 'text-muted'}`}>
                         {gd > 0 ? `+${gd}` : gd}
                       </td>
-                      <td className="nums py-2.5 pr-3 text-center text-[13px] font-extrabold text-fg">{team.points}</td>
+                      <td className="nums py-2.5 pr-2 text-center text-[13px] font-extrabold text-fg sm:pr-3">{team.points}</td>
                     </tr>
                   );
                 })}
@@ -181,7 +188,7 @@ export default function StandingsModal({ leagueSlug, leagueName, onClose }: Stan
         </div>
 
         {group && group.teams.length > 0 && (
-          <div className="flex flex-shrink-0 items-center gap-3 border-t border-line px-4 py-2 text-[10px] text-subtle">
+          <div className="flex flex-shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-line px-4 py-2 text-[10px] text-subtle">
             <span className="inline-flex items-center gap-1">
               <span className="h-3 w-0.5 rounded bg-accent-500" /> Top 4
             </span>

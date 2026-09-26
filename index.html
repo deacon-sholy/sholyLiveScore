@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230b1120'/><path d='M16 6L18 14H26L20 18L22 26L16 20L10 26L12 18L6 14H14L16 6Z' fill='%2310b981'/></svg>" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover lets the page paint under the notch / gesture bar;
+         src/index.css adds the insets back to the pinned header and the page
+         wrapper. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Sholy Livescore · Live Football Scores</title>
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Sholy Livescore" />
@@ -14,6 +17,7 @@
     <meta name="description" content="Live football scores, standings, stats & match events for leagues and international competitions around the world." />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Sholy Scores" />
