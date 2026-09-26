@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, ChevronLeft, Star } from 'lucide-react';
+import { AlertCircle, CalendarX, ChevronLeft, Star } from 'lucide-react';
 import type { LeagueWithMatches } from '../types';
 import { fetchLeague } from '../lib/api';
 import SiteHeader from '../components/SiteHeader';
@@ -67,9 +67,7 @@ export default function LeaguePage() {
   }, [leagueSlug, name]);
 
   if (!isKnownLeague(leagueSlug)) {
-    return (
-      <NotFound slug={leagueSlug} />
-    );
+    return <EmptyLeague slug={leagueSlug} />;
   }
 
   return (
@@ -116,8 +114,14 @@ export default function LeaguePage() {
             />
           </div>
         ) : (
-          <NotFound slug={leagueSlug} />
-        )}
+          <EmptyLeague
+            slug={leagueSlug}
+            standingsOpen={standingsOpen}
+            onStandingsOpen={() => setStandingsOpen(true)}
+            onStandingsClose={() => setStandingsOpen(false)}
+          />
+        )
+        }
       </main>
 
       {standingsOpen && league && (
@@ -131,22 +135,60 @@ export default function LeaguePage() {
   );
 }
 
-function NotFound({ slug }: { slug: string }) {
+/**
+ * An empty response means one of two very different things: the slug is not one
+ * we cover, or the league simply has no fixtures on the requested date — every
+ * domestic league hits that during an international break, so it must not be
+ * reported as a missing league.
+ */
+function EmptyLeague({
+  slug,
+  standingsOpen = false,
+  onStandingsOpen,
+  onStandingsClose,
+}: {
+  slug: string;
+  standingsOpen?: boolean;
+  onStandingsOpen?: () => void;
+  onStandingsClose?: () => void;
+}) {
+  const known = isKnownLeague(slug);
   return (
     <div className="mx-auto flex min-h-[400px] max-w-3xl flex-col items-center justify-center gap-4 px-4 text-center">
       <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-line bg-surface">
-        <Star className="h-6 w-6 text-subtle" />
+        {known ? <CalendarX className="h-6 w-6 text-subtle" /> : <Star className="h-6 w-6 text-subtle" />}
       </div>
       <div className="text-center">
-        <p className="text-sm font-semibold text-fg">League not found</p>
-        <p className="mt-1 text-xs text-muted">{slug ? `No league matches '${slug}'` : 'Missing league'}</p>
+        <p className="text-sm font-semibold text-fg">
+          {known ? 'No matches today' : 'League not found'}
+        </p>
+        <p className="mt-1 text-xs text-muted">
+          {known ? `${leagueName(slug)} has no fixtures for this date.` : `We don't cover '${slug}' yet.`}
+        </p>
       </div>
-      <Link
-        to="/"
-        className="rounded-xl bg-fg px-5 py-2.5 text-sm font-semibold text-canvas transition-opacity hover:opacity-85"
-      >
-        Back to all scores
-      </Link>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <Link
+          to="/"
+          className="rounded-xl bg-fg px-5 py-2.5 text-sm font-semibold text-canvas transition-opacity hover:opacity-85"
+        >
+          Back to all scores
+        </Link>
+        {known && (
+          <button
+            onClick={() => onStandingsOpen?.()}
+            className="rounded-xl border border-line px-5 py-2.5 text-sm font-semibold text-fg transition-colors hover:bg-surface"
+          >
+            View standings
+          </button>
+        )}
+      </div>
+      {standingsOpen && (
+        <StandingsModal
+          leagueSlug={slug}
+          leagueName={leagueName(slug)}
+          onClose={() => onStandingsClose?.()}
+        />
+      )}
     </div>
   );
 }
