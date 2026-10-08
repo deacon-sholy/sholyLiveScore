@@ -17,6 +17,7 @@ import android.view.WindowInsetsController;
 import android.webkit.ServiceWorkerClient;
 import android.webkit.ServiceWorkerController;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -33,7 +34,60 @@ import android.webkit.WebViewClient;
 public class MainActivity extends Activity {
 
     private static final String HOME_URL = "https://sholylivescore.netlify.app/";
+    private static final Uri HOME_URI = Uri.parse(HOME_URL);
     private static final int BRAND_BG = 0xFF070B14;
+
+    /**
+     * Shown when the main frame cannot be loaded. Chromium's own error page
+     * would break the shell's look (and its dark palette), and once the
+     * service worker has a shell cached the site keeps working offline anyway,
+     * so this only appears before anything is cached.
+     */
+    private static final String OFFLINE_HTML = """
+            <!doctype html>
+            <html lang="en">
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+              <title>Sholy Scores</title>
+              <style>
+                :root { color-scheme: dark; }
+                * { box-sizing: border-box; }
+                body {
+                  margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+                  padding: 24px; background: #070b14; color: #e5e9f2; text-align: center;
+                  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+                }
+                .card { max-width: 22rem; }
+                .bolt {
+                  width: 56px; height: 56px; margin: 0 auto 20px; border-radius: 16px;
+                  display: flex; align-items: center; justify-content: center;
+                  background: linear-gradient(135deg, #34d399, #059669);
+                  box-shadow: 0 10px 30px -12px rgba(16, 185, 129, 0.55);
+                }
+                h1 { margin: 0 0 8px; font-size: 1.25rem; font-weight: 700; }
+                p { margin: 0 0 24px; font-size: 0.875rem; line-height: 1.55; color: #94a3b8; }
+                button {
+                  font: 600 0.875rem/1 system-ui, sans-serif; color: #070b14; background: #f7f9fc;
+                  border: 0; border-radius: 12px; padding: 14px 26px; cursor: pointer;
+                }
+                button:active { opacity: 0.85; }
+              </style>
+            </head>
+            <body>
+              <div class="card">
+                <div class="bolt">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="#04321f" aria-hidden="true">
+                    <path d="M13 2L4.5 13.5H11L9.5 22 19 10h-6.5L13 2z"/>
+                  </svg>
+                </div>
+                <h1>You're offline</h1>
+                <p>Sholy Scores needs a connection to pull live scores. Check your network and try again.</p>
+                <button onclick="location.replace('https://sholylivescore.netlify.app/')">Try again</button>
+              </div>
+            </body>
+            </html>
+            """;
 
     private WebView webView;
 
@@ -89,7 +143,7 @@ public class MainActivity extends Activity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri url = request.getUrl();
-                if (isInternal(url.toString())) {
+                if (isInternal(url)) {
                     return false;
                 }
                 openExternally(url);
@@ -101,12 +155,32 @@ public class MainActivity extends Activity {
                 super.onPageFinished(view, url);
                 standDownAsNativeShell();
             }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                super.onReceivedError(view, request, error);
+                // Sub-resources fail quietly; only a dead main frame needs the
+                // branded fallback. HTTP 4xx/5xx arrive at onReceivedHttpError.
+                if (request.isForMainFrame()) {
+                    view.loadDataWithBaseURL(HOME_URL, OFFLINE_HTML, "text/html", "utf-8", null);
+                }
+            }
         });
         webView.setWebChromeClient(new WebChromeClient());
 
         setContentView(webView);
         insetWebView();
-        webView.loadUrl(HOME_URL);
+        webView.loadUrl(targetUrl());
+    }
+
+    /**
+     * App Links hand the tapped URL to the activity instead of the launcher
+     * home page. Anything that is not on our own origin falls back to the home
+     * page, so a spoofed intent can never make the shell load a foreign site.
+     */
+    private String targetUrl() {
+        Uri data = getIntent() != null ? getIntent().getData() : null;
+        return data != null && isInternal(data) ? data.toString() : HOME_URL;
     }
 
     /**
@@ -161,8 +235,10 @@ public class MainActivity extends Activity {
                 "document.documentElement.classList.add('native-shell');", null);
     }
 
-    private boolean isInternal(String url) {
-        return url != null && url.startsWith(HOME_URL);
+    private boolean isInternal(Uri url) {
+        return url != null
+                && "https".equals(url.getScheme())
+                && HOME_URI.getHost().equals(url.getHost());
     }
 
     private void openExternally(Uri url) {
@@ -178,6 +254,18 @@ public class MainActivity extends Activity {
             startActivity(new Intent(Intent.ACTION_VIEW, url));
         } catch (ActivityNotFoundException ignored) {
             // Nothing installed can handle it, so stay where we are.
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        // singleTask delivers follow-up link taps here, so the intent has to be
+        // replaced or the next rotation/recreation would replay the old one.
+        setIntent(intent);
+        Uri data = intent.getData();
+        if (webView != null && data != null && isInternal(data)) {
+            webView.loadUrl(data.toString());
         }
     }
 

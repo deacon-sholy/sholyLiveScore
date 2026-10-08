@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.sholylivescore.scores",
+      "sha256_cert_fingerprints": [
+        "CD:6C:EE:DF:04:E6:F6:06:C7:59:8D:B8:3C:FE:CE:16:46:E6:C1:9D:4C:BB:68:A2:3B:05:96:97:8B:1A:87:E5"
+      ]
+    }
+  }
+]

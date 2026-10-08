@@ -1,6 +1,11 @@
 # Local machine config
 local.properties
 
+# Release signing (the key must never be committed; see README)
+keystore.properties
+*.keystore
+*.jks
+
 # Gradle
 .gradle/
 build/

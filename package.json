@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "apk": "powershell -ExecutionPolicy Bypass -File scripts/build-apk.ps1",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.functions.json"
   },
   "dependencies": {
