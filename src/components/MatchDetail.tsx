@@ -235,7 +235,7 @@ function SectionCard({
       <h2 className="flex items-center gap-2 border-b border-line px-4 py-3 text-[13px] font-bold text-fg">
         {icon}
         {title}
-        {aside && <span className="ml-auto text-[11px] font-medium text-subtle">{aside}</span>}
+        {aside && <span className="ml-auto min-w-0 truncate text-[11px] font-medium text-subtle">{aside}</span>}
       </h2>
       {children}
     </section>
@@ -368,13 +368,71 @@ export default function MatchDetail({ match, onBack }: MatchDetailProps) {
         </div>
       )}
 
-      {match.detail?.h2h && (
-        <div className="mt-4 flex items-center justify-center gap-2 rounded-2xl border border-line bg-surface px-4 py-3">
-          <Swords className="h-3.5 w-3.5 flex-shrink-0 text-subtle" />
-          <span className="text-[10px] font-bold uppercase tracking-wider text-subtle">H2H</span>
-          <span className="truncate text-[13px] font-semibold text-fg">{match.detail.h2h.summary}</span>
-        </div>
-      )}
+      {match.detail?.h2h &&
+        (match.detail.h2h.meetings && match.detail.h2h.meetings.length > 0 ? (
+          <div className="mt-4">
+            <SectionCard
+              icon={<Swords className="h-4 w-4 text-accent-500" />}
+              title="Head-to-head"
+              aside={match.detail.h2h.summary || undefined}
+            >
+              <ul className="divide-y divide-line/60">
+                {match.detail.h2h.meetings.map((m, idx) => {
+                  const dateStr = m.date
+                    ? new Date(m.date).toLocaleDateString('en-US', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: '2-digit',
+                      })
+                    : '';
+                  const extraStatus = m.status && !/^ft$/i.test(m.status.trim()) ? m.status : '';
+                  const title = [
+                    dateStr,
+                    m.competition,
+                    extraStatus,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ');
+                  const sideClass = (side: 'home' | 'away') =>
+                    m.winner === side ? 'font-bold text-fg' : 'text-muted';
+                  return (
+                    <li
+                      key={`${m.date}-${idx}`}
+                      title={title || undefined}
+                      className="flex items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4"
+                    >
+                      <span className="nums w-[58px] flex-shrink-0 text-[11px] text-subtle sm:w-[66px]">
+                        {dateStr}
+                      </span>
+                      <span className={`min-w-0 flex-1 truncate text-right text-[13px] ${sideClass('home')}`}>
+                        {m.home}
+                      </span>
+                      <span className="nums flex-shrink-0 rounded-lg bg-sunken px-2 py-1 text-[12px] font-bold text-fg">
+                        {m.home_score ?? '–'}
+                        <span className="px-0.5 text-subtle">–</span>
+                        {m.away_score ?? '–'}
+                      </span>
+                      {extraStatus && (
+                        <span className="hidden flex-shrink-0 text-[9px] font-bold uppercase tracking-wide text-subtle sm:inline">
+                          {extraStatus}
+                        </span>
+                      )}
+                      <span className={`min-w-0 flex-1 truncate text-[13px] ${sideClass('away')}`}>
+                        {m.away}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </SectionCard>
+          </div>
+        ) : (
+          <div className="mt-4 flex items-center justify-center gap-2 rounded-2xl border border-line bg-surface px-4 py-3">
+            <Swords className="h-3.5 w-3.5 flex-shrink-0 text-subtle" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-subtle">H2H</span>
+            <span className="truncate text-[13px] font-semibold text-fg">{match.detail.h2h.summary}</span>
+          </div>
+        ))}
 
       {/* Last 5 form */}
       {match.detail?.form && (match.detail.form.home.length > 0 || match.detail.form.away.length > 0) && (

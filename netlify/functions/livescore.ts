@@ -549,7 +549,20 @@ interface EspnSummary {
   seasonseries?: Array<{
     title?: string;
     summary?: string;
-    events?: unknown[];
+    events?: EspnSeriesEvent[];
+  }>;
+}
+
+interface EspnSeriesEvent {
+  id?: string;
+  date?: string;
+  statusType?: { shortDetail?: string; detail?: string };
+  competitionName?: string;
+  competitors?: Array<{
+    homeAway?: string;
+    winner?: boolean;
+    score?: string;
+    team?: { displayName?: string };
   }>;
 }
 
@@ -575,10 +588,21 @@ interface FormResult {
   date: string;
 }
 
+interface H2hMeeting {
+  date: string;
+  home: string;
+  away: string;
+  home_score: number | null;
+  away_score: number | null;
+  winner: 'home' | 'away' | 'draw' | null;
+  status: string;
+  competition: string | null;
+}
+
 interface MatchExtras {
   stats: { home: TeamStats; away: TeamStats } | null;
   form: { home: FormResult[]; away: FormResult[] } | null;
-  h2h: { title: string; summary: string } | null;
+  h2h: { title: string; summary: string; meetings: H2hMeeting[] } | null;
 }
 
 function statNumber(stats: Record<string, string>, key: string): number | null {
@@ -664,6 +688,47 @@ function extractForm(json: EspnSummary): MatchExtras['form'] {
   return { home, away };
 }
 
+function parseSeriesMeeting(e: EspnSeriesEvent): H2hMeeting | null {
+  const competitors = e.competitors ?? [];
+  const home = competitors.find((c) => c.homeAway === 'home');
+  const away = competitors.find((c) => c.homeAway === 'away');
+  if (!home || !away) return null;
+
+  const toScore = (raw: string | undefined): number | null => {
+    if (raw === undefined || raw === '') return null;
+    const n = parseInt(raw, 10);
+    return Number.isNaN(n) ? null : n;
+  };
+  const homeScore = toScore(home.score);
+  const awayScore = toScore(away.score);
+
+  let winner: H2hMeeting['winner'] = null;
+  if (home.winner) winner = 'home';
+  else if (away.winner) winner = 'away';
+  else if (homeScore !== null && awayScore !== null && homeScore === awayScore) winner = 'draw';
+
+  return {
+    date: e.date ?? '',
+    home: home.team?.displayName ?? '',
+    away: away.team?.displayName ?? '',
+    home_score: homeScore,
+    away_score: awayScore,
+    winner,
+    status: e.statusType?.shortDetail ?? e.statusType?.detail ?? '',
+    competition: e.competitionName ?? null,
+  };
+}
+
+type EspnSeries = NonNullable<EspnSummary['seasonseries']>[number];
+
+function seriesMeetings(series: EspnSeries): H2hMeeting[] {
+  const meetings = (series.events ?? [])
+    .map(parseSeriesMeeting)
+    .filter((m): m is H2hMeeting => m !== null && m.date !== '');
+  meetings.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  return meetings.slice(0, 10);
+}
+
 function extractH2h(json: EspnSummary, homeName: string, awayName: string): MatchExtras['h2h'] {
   const series = json.seasonseries ?? [];
   const usable = series.filter((s) => s.summary || s.title);
@@ -680,7 +745,15 @@ function extractH2h(json: EspnSummary, homeName: string, awayName: string): Matc
   });
   const chosen = match ?? usable[0];
 
-  return { title: chosen.title ?? '', summary: chosen.summary ?? '' };
+  // Past meetings only live on some series entries; fall back to any other
+  // series that carries them rather than showing an empty list.
+  let meetings = chosen ? seriesMeetings(chosen) : [];
+  if (meetings.length === 0) {
+    const withEvents = usable.find((s) => (s.events ?? []).length > 0);
+    if (withEvents) meetings = seriesMeetings(withEvents);
+  }
+
+  return { title: chosen.title ?? '', summary: chosen.summary ?? '', meetings };
 }
 
 function extractMatchExtras(json: EspnSummary, homeName: string, awayName: string): MatchExtras {

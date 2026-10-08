@@ -16,7 +16,7 @@
 - Summaries (events, stats, form, h2h): `https://site.web.api.espn.com/apis/site/v2/sports/soccer/{slug}/summary?event={id}`
   - `boxscore.teams[].statistics[]` keys: `possessionPct`, `totalShots`, `shotsOnTarget`, `wonCorners`, `foulsCommitted`, `yellowCards`, `redCards`, `offsides`, `saves`, `accuratePasses`, `totalPasses`, `passPct` (0–1 scale).
   - `lastFiveGames[].events[]`: `gameResult` (W/D/L), `opponent`, `score`, `atVs`, `gameDate`.
-  - `seasonseries[]`: `title`/`summary` for H2H.
+  - `seasonseries[]`: `title`/`summary` for H2H; `events[]` (past meetings: date, competitors w/ scores, `statusType.shortDetail`, `competitionName`) feeds the "Head-to-head" card, max 10 newest.
   - Rosters are empty even for finished matches — lineups are NOT available.
   - `summary.keyEvents` is the event source of truth. `header.competitions[0].details` is trimmed to ~2 nameless rows for some tournament finals (e.g. the World Cup final exposes 8 events in the scoreboard but only 2 in the summary header). `keyEvents` has full names/assists; use `details` only when `keyEvents` is missing.
   - `keyEvents` shapes events differently per competition: most use `athletesInvolved[]`; friendlies rely on `team.id`. `mapEvent` handles both and falls back to home/away team ids.

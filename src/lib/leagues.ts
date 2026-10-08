@@ -18,7 +18,9 @@ export interface LeagueDef {
 }
 
 // Curated list of the world's biggest competitions, in display order.
-// The order below is the display order on the home page and in the sitemap.
+// The order below is the display order within each region: the home page
+// pins favourites to the top, then buckets the rest by `group`
+// (International → Europe → Americas → Asia). Also the sitemap order.
 // Empty scoreboards are skipped, so leagues outside their season (or in
 // between tournament windows) simply don't show up.
 export const LEAGUES: LeagueDef[] = [

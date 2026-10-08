@@ -91,16 +91,33 @@ export interface FormResult {
   date: string;
 }
 
+export interface H2hMeeting {
+  date: string;
+  home: string;
+  away: string;
+  home_score: number | null;
+  away_score: number | null;
+  winner: 'home' | 'away' | 'draw' | null;
+  status: string;
+  competition: string | null;
+}
+
+export interface H2hRecord {
+  title: string;
+  summary: string;
+  meetings?: H2hMeeting[];
+}
+
 export interface MatchDetailData {
   match?: Match | null;
   events: MatchEvent[];
   stats?: { home: TeamStats; away: TeamStats } | null;
   form?: { home: FormResult[]; away: FormResult[] } | null;
-  h2h?: { title: string; summary: string } | null;
+  h2h?: H2hRecord | null;
 }
 
 export interface MatchDetail {
   stats?: { home: TeamStats; away: TeamStats } | null;
   form?: { home: FormResult[]; away: FormResult[] } | null;
-  h2h?: { title: string; summary: string } | null;
+  h2h?: H2hRecord | null;
 }

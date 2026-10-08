@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Radio,
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { LeagueWithMatches } from '../types';
 import { fetchLeagues, filterByStatus, isInPlay, type StatusFilter } from '../lib/api';
+import { getLeague, type LeagueGroup } from '../lib/leagues';
 import SiteHeader from '../components/SiteHeader';
 import LeagueSection from '../components/LeagueSection';
 import SearchBar from '../components/SearchBar';
@@ -35,6 +36,22 @@ function toISODate(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+const REGION_ORDER: LeagueGroup[] = ['international', 'europe', 'americas', 'asia'];
+
+const REGION_LABELS: Record<LeagueGroup, string> = {
+  international: 'International',
+  europe: 'Europe',
+  americas: 'Americas',
+  asia: 'Asia & Middle East',
+};
+
+interface LeagueBlock {
+  key: string;
+  label: string;
+  starred?: boolean;
+  leagues: LeagueWithMatches[];
 }
 
 function SkeletonList() {
@@ -158,6 +175,33 @@ export default function HomePage() {
       }))
       .filter((l) => l.matches.length > 0);
   }, [leagues, search, filter, favoriteSlugs]);
+
+  // Favourites are pinned to the top, then the rest is bucketed by region so
+  // the long list stays scannable. Under the "My Leagues" tab everything is a
+  // favourite, so the pinning block would just repeat the region headers.
+  const leagueBlocks = useMemo<LeagueBlock[]>(() => {
+    const isFav = (slug: string) => favoriteSlugs.includes(slug);
+    const pinned = filter === 'favorites' ? [] : filteredLeagues.filter((l) => isFav(l.slug));
+    const rest = filter === 'favorites' ? filteredLeagues : filteredLeagues.filter((l) => !isFav(l.slug));
+
+    const blocks: LeagueBlock[] = [];
+    if (pinned.length > 0) {
+      blocks.push({ key: 'favorites', label: 'Favourites', starred: true, leagues: pinned });
+    }
+    for (const region of REGION_ORDER) {
+      const leaguesInRegion = rest.filter((l) => getLeague(l.slug)?.group === region);
+      if (leaguesInRegion.length > 0) {
+        blocks.push({ key: region, label: REGION_LABELS[region], leagues: leaguesInRegion });
+      }
+    }
+    // Leagues missing from the curated list would otherwise vanish.
+    const placed = new Set(blocks.flatMap((b) => b.leagues.map((l) => l.slug)));
+    const leftovers = rest.filter((l) => !placed.has(l.slug));
+    if (leftovers.length > 0) {
+      blocks.push({ key: 'other', label: 'Other', leagues: leftovers });
+    }
+    return blocks;
+  }, [filteredLeagues, favoriteSlugs, filter]);
 
   const shiftDate = useCallback((delta: number) => {
     setDate((current) => {
@@ -311,15 +355,25 @@ export default function HomePage() {
             </div>
 
             <div className="grid gap-x-6 gap-y-7 lg:grid-cols-2">
-              {filteredLeagues.map((league) => (
-                <LeagueSection
-                  key={league.id}
-                  league={league}
-                  favorite={favoriteSlugs.includes(league.slug)}
-                  onToggleFavorite={toggleFavorite}
-                  onMatchClick={handleMatchClick}
-                  onStandingsClick={(slug, name) => setStandingsLeague({ slug, name })}
-                />
+              {leagueBlocks.map((block) => (
+                <Fragment key={block.key}>
+                  <div className="-mb-4 flex items-center gap-2.5 pt-1 lg:col-span-full">
+                    {block.starred && <Star className="h-3 w-3 flex-shrink-0 text-amber-500" fill="currentColor" />}
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-subtle">{block.label}</span>
+                    <span aria-hidden className="h-px flex-1 bg-line" />
+                    <span className="nums text-[10px] font-semibold text-subtle">{block.leagues.length}</span>
+                  </div>
+                  {block.leagues.map((league) => (
+                    <LeagueSection
+                      key={league.id}
+                      league={league}
+                      favorite={favoriteSlugs.includes(league.slug)}
+                      onToggleFavorite={toggleFavorite}
+                      onMatchClick={handleMatchClick}
+                      onStandingsClick={(slug, name) => setStandingsLeague({ slug, name })}
+                    />
+                  ))}
+                </Fragment>
               ))}
             </div>
           </div>
