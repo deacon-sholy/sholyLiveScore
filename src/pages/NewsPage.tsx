@@ -1,25 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, ArrowUpRight, Clock3, Newspaper, SearchX } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { AlertCircle, ArrowRight, Clock3, Newspaper, SearchX } from 'lucide-react';
 import type { NewsArticle } from '../types';
 import { fetchNews } from '../lib/api';
 import SiteHeader from '../components/SiteHeader';
 import { applySeo, SITE } from '../lib/seo';
+import { timeAgo } from '../lib/time';
 
 const REFRESH_MS = 60_000;
-
-function timeAgo(iso: string): string {
-  const time = new Date(iso).getTime();
-  if (Number.isNaN(time)) return '';
-  const diff = Date.now() - time;
-  if (diff < 60_000) return 'Just now';
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
 
 function ArticleMeta({ article }: { article: NewsArticle }) {
   return (
@@ -31,8 +19,8 @@ function ArticleMeta({ article }: { article: NewsArticle }) {
         {timeAgo(article.published_at)}
       </span>
       <span className="ml-auto inline-flex items-center gap-0.5 text-muted transition-colors group-hover:text-fg">
-        ESPN
-        <ArrowUpRight className="h-3 w-3" />
+        Read
+        <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
       </span>
     </div>
   );
@@ -67,10 +55,8 @@ function Thumb({ article, className = '' }: { article: NewsArticle; className?: 
 
 function FeaturedArticle({ article }: { article: NewsArticle }) {
   return (
-    <a
-      href={article.url}
-      target="_blank"
-      rel="noopener noreferrer"
+    <Link
+      to={`/news/${article.id}`}
       className="group grid overflow-hidden rounded-2xl border border-line bg-surface shadow-card transition-all hover:border-line-strong hover:shadow-lift sm:grid-cols-2"
     >
       <Thumb article={article} className="aspect-video sm:aspect-auto sm:h-full sm:min-h-[260px]" />
@@ -84,16 +70,14 @@ function FeaturedArticle({ article }: { article: NewsArticle }) {
         )}
         <ArticleMeta article={article} />
       </div>
-    </a>
+    </Link>
   );
 }
 
 function ArticleCard({ article }: { article: NewsArticle }) {
   return (
-    <a
-      href={article.url}
-      target="_blank"
-      rel="noopener noreferrer"
+    <Link
+      to={`/news/${article.id}`}
       className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-card transition-all hover:-translate-y-0.5 hover:border-line-strong hover:shadow-lift"
     >
       <Thumb article={article} className="aspect-video" />
@@ -109,7 +93,7 @@ function ArticleCard({ article }: { article: NewsArticle }) {
           <ArticleMeta article={article} />
         </div>
       </div>
-    </a>
+    </Link>
   );
 }
 
@@ -288,7 +272,7 @@ export default function NewsPage() {
         )}
 
         <p className="mt-8 text-center text-[11px] text-subtle">
-          News headlines and summaries are provided by ESPN. Tap a story to read it on ESPN.
+          News is provided by ESPN and published here for Sholy readers.
         </p>
       </main>
     </>

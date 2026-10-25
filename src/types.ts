@@ -132,3 +132,12 @@ export interface NewsArticle {
   byline: string | null;
   league: string;
 }
+
+export interface NewsBlock {
+  type: 'p' | 'h2';
+  text: string;
+}
+
+export interface NewsArticleDetail extends NewsArticle {
+  blocks: NewsBlock[];
+}

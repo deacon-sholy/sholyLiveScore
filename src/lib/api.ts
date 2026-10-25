@@ -4,6 +4,7 @@ import type {
   MatchDetailData,
   MatchEvent,
   NewsArticle,
+  NewsArticleDetail,
   StandingsData,
 } from '../types';
 
@@ -106,6 +107,19 @@ export async function fetchNews(): Promise<NewsArticle[]> {
   const data: { articles?: NewsArticle[]; error?: string } = await response.json();
   if (data.error) throw new Error(data.error);
   return data.articles ?? [];
+}
+
+export async function fetchNewsArticle(id: string): Promise<NewsArticleDetail> {
+  const response = await fetch(`${NEWS_URL}?id=${encodeURIComponent(id)}`, {
+    headers: { Accept: 'application/json' },
+  });
+  if (!response.ok) {
+    throw new Error(`Request failed (${response.status})`);
+  }
+  const data: { article?: NewsArticleDetail; error?: string } = await response.json();
+  if (data.error) throw new Error(data.error);
+  if (!data.article) throw new Error('Story unavailable');
+  return data.article;
 }
 
 export function formatKickoff(kickoff: string): string {

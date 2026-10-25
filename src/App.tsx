@@ -6,6 +6,7 @@ import LeaguePage from './pages/LeaguePage';
 import MatchPage from './pages/MatchPage';
 import DownloadPage from './pages/DownloadPage';
 import NewsPage from './pages/NewsPage';
+import NewsArticlePage from './pages/NewsArticlePage';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -36,6 +37,7 @@ function App() {
           <Route path="/league/:leagueSlug" element={<LeaguePage />} />
           <Route path="/league/:leagueSlug/match/:matchId" element={<MatchPage />} />
           <Route path="/news" element={<NewsPage />} />
+          <Route path="/news/:newsId" element={<NewsArticlePage />} />
           <Route path="/download" element={<DownloadPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
