@@ -15,6 +15,7 @@ import type { LeagueWithMatches } from '../types';
 import { fetchLeagues, filterByStatus, isInPlay, type StatusFilter } from '../lib/api';
 import { getLeague, type LeagueGroup } from '../lib/leagues';
 import SiteHeader from '../components/SiteHeader';
+import HomeNews from '../components/HomeNews';
 import LeagueSection from '../components/LeagueSection';
 import SearchBar from '../components/SearchBar';
 import StandingsModal from '../components/StandingsModal';
@@ -294,6 +295,8 @@ export default function HomePage() {
       </SiteHeader>
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+        <HomeNews />
+
         {loading && leagues.length === 0 ? (
           <SkeletonList />
         ) : error ? (
