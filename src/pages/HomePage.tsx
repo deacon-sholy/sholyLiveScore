@@ -130,7 +130,7 @@ export default function HomePage() {
     if (!isToday) return;
     const interval = setInterval(() => {
       loadMatches(true);
-    }, 30000);
+    }, 15000);
     return () => clearInterval(interval);
   }, [filter, loadMatches, isToday]);
 

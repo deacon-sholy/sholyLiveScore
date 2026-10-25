@@ -42,7 +42,7 @@ export default function MatchPage() {
     setLoading(true);
     setMatch(null);
     load();
-    const interval = setInterval(load, 15000);
+    const interval = setInterval(load, 10000);
     return () => {
       alive = false;
       clearInterval(interval);

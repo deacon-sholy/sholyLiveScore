@@ -20,7 +20,7 @@ import { ANDROID_MIN_VERSION, APP_VERSION, APK_URL } from '../lib/appInfo';
 type Platform = 'android' | 'ios' | 'desktop';
 
 const FEATURES = [
-  { icon: Radio, title: 'Live scores', body: 'Every match on the page refreshes itself every 30 seconds.' },
+  { icon: Radio, title: 'Live scores', body: 'Every match on the page refreshes itself every 15 seconds.' },
   { icon: BarChart3, title: 'Stats, form & head-to-head', body: 'Possession, shots, corners, the last five results and the full H2H record.' },
   { icon: Trophy, title: 'Standings', body: 'League tables for every competition, plus cup groups when they exist.' },
   { icon: Star, title: 'My Leagues', body: 'Star the competitions you follow and they move to the top, saved on your device.' },

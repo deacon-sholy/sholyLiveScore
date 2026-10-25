@@ -39,8 +39,8 @@ interface CacheEntry {
 }
 
 const cache = new Map<string, CacheEntry>();
-const CACHE_TTL = 60_000; // 60s for scoreboards
-const MATCH_CACHE_TTL = 30_000; // 30s for match details
+const CACHE_TTL = 15_000; // 15s for scoreboards
+const MATCH_CACHE_TTL = 10_000; // 10s for match details
 const STANDINGS_CACHE_TTL = 5 * 60_000; // 5min for standings
 // Hard cap so a long-lived instance can't grow the map without bound.
 const MAX_CACHE_ENTRIES = 500;

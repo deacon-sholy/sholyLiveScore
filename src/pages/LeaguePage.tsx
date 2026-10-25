@@ -44,7 +44,7 @@ export default function LeaguePage() {
     load();
     const interval = setInterval(() => {
       load();
-    }, 30000);
+    }, 15000);
     return () => {
       alive = false;
       clearInterval(interval);
