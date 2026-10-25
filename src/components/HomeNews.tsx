@@ -131,7 +131,7 @@ export default function HomeNews() {
       ) : (
         // Swipeable rail on phones and tablets so scores stay close to the top;
         // four even columns once there is room.
-        <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 no-scrollbar lg:mx-0 lg:grid lg:grid-cols-4 lg:gap-4 lg:overflow-visible lg:px-0">
+        <div className="-mx-4 flex snap-x snap-mandatory scroll-pl-4 gap-3 overflow-x-auto px-4 pb-1 no-scrollbar lg:mx-0 lg:grid lg:grid-cols-4 lg:scroll-pl-0 lg:gap-4 lg:overflow-visible lg:px-0">
           {latest.map((article) => (
             <NewsCard key={article.id} article={article} />
           ))}
