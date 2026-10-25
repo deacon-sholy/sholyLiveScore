@@ -43,7 +43,7 @@ function App() {
           gesture bar clearance comes from `safe-b` on the wrapper above. */}
       <footer className="relative border-t border-line py-7 text-center">
         <p className="text-xs text-muted">
-          Live data from ESPN · Auto-refresh every 15s
+          Live data from ESPN · Live scores refresh every 5s
         </p>
         <p className="mt-2.5">
           <Link

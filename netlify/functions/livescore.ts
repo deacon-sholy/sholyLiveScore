@@ -41,6 +41,7 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 const CACHE_TTL = 15_000; // 15s for scoreboards
 const MATCH_CACHE_TTL = 10_000; // 10s for match details
+const LIVE_SCORE_TTL = 4_000; // 4s for the match page's score-only poll
 const STANDINGS_CACHE_TTL = 5 * 60_000; // 5min for standings
 // Hard cap so a long-lived instance can't grow the map without bound.
 const MAX_CACHE_ENTRIES = 500;
@@ -876,6 +877,22 @@ export const handler: Handler = async (event: HandlerEvent) => {
       if (!league) {
         return jsonResponse(404, { error: 'Unknown league' }, origin);
       }
+      // Lightweight score poll for the match page: a scoreboard is much cheaper
+      // than a full summary, so the score/minute can refresh every few seconds
+      // without hammering ESPN for stats/form/h2h.
+      if (query.live === '1') {
+        const liveCacheKey = `live_${leagueSlug}`;
+        const board = getCached(liveCacheKey, LIVE_SCORE_TTL) as LeagueWithMatches | null;
+        const current =
+          board ??
+          (await fetchJson(`${ESPN_BASE}/${leagueSlug}/scoreboard`, 5000).then((json) =>
+            json ? transformScoreboard(league, json as EspnScoreboard) : null,
+          ));
+        if (current) setCache(liveCacheKey, current, LIVE_SCORE_TTL);
+        const match = current?.matches.find((m) => m.id === eventId) ?? null;
+        return jsonResponse(200, { match }, origin);
+      }
+
       const cacheKey = `match_${leagueSlug}_${eventId}`;
       // Cache the whole payload — caching only `events` used to drop
       // stats/form/h2h on every cache hit.

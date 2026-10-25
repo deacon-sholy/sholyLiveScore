@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AlertCircle, ChevronLeft, SearchX } from 'lucide-react';
 import type { Match } from '../types';
-import { fetchMatchDetail } from '../lib/api';
+import { fetchMatchDetail, fetchMatchScore } from '../lib/api';
 import SiteHeader from '../components/SiteHeader';
 import MatchDetail from '../components/MatchDetail';
 import { applySeo, isKnownLeague, leagueName, SITE } from '../lib/seo';
@@ -48,6 +48,41 @@ export default function MatchPage() {
       clearInterval(interval);
     };
   }, [leagueSlug, matchId]);
+
+  // While the match is in play, refresh the score/minute from the cheap
+  // scoreboard endpoint every 5s. The full summary above keeps stats/form/h2h
+  // up to date on a slower cadence.
+  const inPlay = match?.status === 'live' || match?.status === 'halftime';
+  useEffect(() => {
+    if (!inPlay) return;
+    let alive = true;
+
+    const tick = async () => {
+      if (document.visibilityState === 'hidden') return;
+      try {
+        const score = await fetchMatchScore(leagueSlug, matchId);
+        if (!alive || !score) return;
+        setMatch((current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            ...score,
+            detail: current.detail,
+            events: score.events.length >= current.events.length ? score.events : current.events,
+          };
+        });
+      } catch {
+        // Keep the last good score; the next tick retries.
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 5000);
+    return () => {
+      alive = false;
+      clearInterval(interval);
+    };
+  }, [inPlay, leagueSlug, matchId]);
 
   const home = match?.home_team.name ?? '';
   const away = match?.away_team.name ?? '';

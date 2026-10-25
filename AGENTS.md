@@ -29,6 +29,7 @@
 ## Architecture shortcuts
 - `src/lib/leagues.ts` is the single source of truth for the league list (order, grouping, `standings` support, `seoName` disambiguation). Client and both functions import it; there is no `netlify/functions/leagues.ts` and no `LEAGUE_META` copy in `seo.ts`. Functions reach it via `../../src/lib/leagues`, so Netlify's bundler must follow cross-directory relative imports.
 - `?league&event` on the function now returns a fully built `match` plus `events`/`stats`/`form`/`h2h` from the summary, so `MatchPage` needs only one request and works for any past date.
+- `?league&event&live=1` returns just `{ match }` from the league scoreboard (4s cache). `MatchPage` polls it every 5s while the match is live/halftime for fast goal/score updates, while the full summary poll stays at 10s for stats/form/h2h.
 - Single league fetch: `?league=<slug>[&date=YYYY-MM-DD]` returns that league's scoreboard only (used by `/league/:slug`).
 - Standings: `?standings=<slug>` returns `groups[]` so World Cup/Euro show per-group tables; domestic leagues return a single implicit group. `standings: false` entries (friendlies) have no table.
 - The all-leagues fan-out is capped at 8s with a shared deadline, per-request timeouts derived from remaining time, and 1 attempt when <3s remain. Unfinished leagues fall back to stale cache. Keep total runtime under Netlify's ~10s limit.

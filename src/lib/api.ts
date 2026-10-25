@@ -61,6 +61,12 @@ export async function fetchLeague(leagueSlug: string, date?: string): Promise<Le
   return data.leagues?.[0] ?? null;
 }
 
+/** Cheap score/minute/event refresh used while a match is in play. */
+export async function fetchMatchScore(leagueSlug: string, eventId: string): Promise<Match | null> {
+  const data = await getJson({ league: leagueSlug, event: eventId, live: '1' });
+  return data.match ?? null;
+}
+
 export async function fetchStandings(leagueSlug: string): Promise<StandingsData | null> {
   const data = await getJson({ standings: leagueSlug });
   return data.standings ?? null;
