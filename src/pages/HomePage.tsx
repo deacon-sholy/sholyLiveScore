@@ -295,8 +295,9 @@ export default function HomePage() {
       </SiteHeader>
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        <HomeNews />
-
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start xl:grid-cols-[minmax(0,1fr)_320px]">
+          <HomeNews className="lg:col-start-2 lg:row-start-1" />
+          <div className="min-w-0 lg:col-start-1 lg:row-start-1">
         {loading && leagues.length === 0 ? (
           <SkeletonList />
         ) : error ? (
@@ -358,7 +359,7 @@ export default function HomePage() {
               )}
             </div>
 
-            <div className="grid gap-x-6 gap-y-7 lg:grid-cols-2">
+            <div className="grid gap-x-6 gap-y-7 xl:grid-cols-2">
               {leagueBlocks.map((block) => (
                 <Fragment key={block.key}>
                   <div className="-mb-4 flex items-center gap-2.5 pt-1 lg:col-span-full">
@@ -382,6 +383,8 @@ export default function HomePage() {
             </div>
           </div>
         )}
+          </div>
+        </div>
       </main>
 
       {standingsLeague && (
