@@ -7,7 +7,7 @@ import { timeAgo } from '../lib/time';
 
 const REFRESH_MS = 2 * 60_000;
 const SIDEBAR_COUNT = 5;
-const MOBILE_COUNT = 4;
+const SIDEBAR_MEDIA = '(min-width: 1024px)';
 
 function Thumb({ article, className = '' }: { article: NewsArticle; className?: string }) {
   return (
@@ -37,23 +37,6 @@ function Meta({ article }: { article: NewsArticle }) {
         {timeAgo(article.published_at)}
       </span>
     </div>
-  );
-}
-
-function MobileCard({ article }: { article: NewsArticle }) {
-  return (
-    <Link
-      to={`/news/${article.id}`}
-      className="group w-[268px] flex-shrink-0 snap-start overflow-hidden rounded-2xl border border-line bg-surface shadow-card transition-all hover:-translate-y-0.5 hover:border-line-strong hover:shadow-lift sm:w-[300px]"
-    >
-      <Thumb article={article} className="aspect-video" />
-      <div className="space-y-2 p-3">
-        <Meta article={article} />
-        <h3 className="line-clamp-2 font-display text-sm font-bold leading-snug text-fg transition-colors group-hover:text-accent-600 dark:group-hover:text-accent-400">
-          {article.headline}
-        </h3>
-      </div>
-    </Link>
   );
 }
 
@@ -88,26 +71,9 @@ function SidebarRow({ article }: { article: NewsArticle }) {
   );
 }
 
-function MobileSkeleton() {
-  return (
-    <div className="-mx-4 flex gap-3 overflow-hidden px-4 lg:hidden" aria-hidden>
-      {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="w-[268px] flex-shrink-0 sm:w-[300px]">
-          <div className="skeleton aspect-video rounded-t-2xl" />
-          <div className="space-y-2 rounded-b-2xl border border-t-0 border-line bg-surface p-3">
-            <div className="skeleton h-2.5 w-24 rounded" />
-            <div className="skeleton h-3.5 w-full rounded" />
-            <div className="skeleton h-3.5 w-2/3 rounded" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function SidebarSkeleton() {
   return (
-    <div className="hidden lg:block" aria-hidden>
+    <div aria-hidden>
       <div className="skeleton aspect-[16/9]" />
       <div className="space-y-2 px-4 py-4">
         <div className="skeleton h-2.5 w-24 rounded" />
@@ -133,6 +99,7 @@ function SidebarSkeleton() {
 export default function HomeNews({ className = '' }: { className?: string }) {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [enabled, setEnabled] = useState(() => window.matchMedia(SIDEBAR_MEDIA).matches);
   const inFlight = useRef(false);
 
   const load = useCallback(async () => {
@@ -151,34 +118,40 @@ export default function HomeNews({ className = '' }: { className?: string }) {
   }, []);
 
   useEffect(() => {
+    const query = window.matchMedia(SIDEBAR_MEDIA);
+    const sync = () => setEnabled(query.matches);
+    sync();
+    query.addEventListener('change', sync);
+    return () => query.removeEventListener('change', sync);
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) return;
     load();
     const interval = setInterval(() => {
       if (document.visibilityState !== 'hidden') load();
     }, REFRESH_MS);
     return () => clearInterval(interval);
-  }, [load]);
+  }, [enabled, load]);
 
   const sidebar = articles.slice(0, SIDEBAR_COUNT);
-  const mobile = articles.slice(0, MOBILE_COUNT);
   const [lead, ...rows] = sidebar;
 
   return (
     <aside
       aria-labelledby="home-news-heading"
-      className={`min-w-0 lg:overflow-hidden lg:rounded-2xl lg:border lg:border-line lg:bg-surface lg:shadow-card ${className}`}
+      className={`hidden min-w-0 lg:block lg:overflow-hidden lg:rounded-2xl lg:border lg:border-line lg:bg-surface lg:shadow-card ${className}`}
     >
-      <div className="mb-3 flex items-end justify-between gap-3 lg:mb-0 lg:items-center lg:border-b lg:border-line lg:px-4 lg:py-3.5">
+      <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3.5">
         <div>
           <h2
             id="home-news-heading"
-            className="flex items-center gap-2 font-display text-lg font-extrabold tracking-tight text-fg sm:text-xl lg:text-[15px]"
+            className="flex items-center gap-2 font-display text-[15px] font-extrabold tracking-tight text-fg"
           >
             <Newspaper className="h-4 w-4 text-accent-500" />
             Latest news
           </h2>
-          <p className="mt-0.5 text-xs text-muted sm:text-[13px] lg:hidden">
-            Transfers, match reports and headlines
-          </p>
+          <p className="mt-0.5 text-xs text-muted">Transfers, match reports and headlines</p>
         </div>
         <Link
           to="/news"
@@ -190,12 +163,9 @@ export default function HomeNews({ className = '' }: { className?: string }) {
       </div>
 
       {loading ? (
-        <>
-          <MobileSkeleton />
-          <SidebarSkeleton />
-        </>
+        <SidebarSkeleton />
       ) : sidebar.length === 0 ? (
-        <div className="rounded-2xl border border-line bg-surface p-4 text-xs text-muted lg:rounded-none lg:border-0 lg:px-4 lg:py-5">
+        <div className="px-4 py-5 text-xs text-muted">
           News is unavailable right now.{' '}
           <Link to="/news" className="font-semibold text-accent-600 hover:underline dark:text-accent-400">
             Visit the news page
@@ -203,24 +173,14 @@ export default function HomeNews({ className = '' }: { className?: string }) {
         </div>
       ) : (
         <>
-          {/* Phones and tablets: a swipeable rail above the scores. */}
-          <div className="-mx-4 flex snap-x snap-mandatory scroll-pl-4 gap-3 overflow-x-auto px-4 pb-1 no-scrollbar lg:hidden">
-            {mobile.map((article) => (
-              <MobileCard key={article.id} article={article} />
-            ))}
-          </div>
-
-          {/* Desktop: livescore-style sidebar column. */}
-          <div className="hidden lg:block">
-            {lead && <SidebarLead article={lead} />}
-            {rows.length > 0 && (
-              <div className="divide-y divide-line border-t border-line">
-                {rows.map((article) => (
-                  <SidebarRow key={article.id} article={article} />
-                ))}
-              </div>
-            )}
-          </div>
+          {lead && <SidebarLead article={lead} />}
+          {rows.length > 0 && (
+            <div className="divide-y divide-line border-t border-line">
+              {rows.map((article) => (
+                <SidebarRow key={article.id} article={article} />
+              ))}
+            </div>
+          )}
         </>
       )}
     </aside>
