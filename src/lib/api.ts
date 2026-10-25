@@ -1,6 +1,14 @@
-import type { LeagueWithMatches, Match, MatchDetailData, MatchEvent, StandingsData } from '../types';
+import type {
+  LeagueWithMatches,
+  Match,
+  MatchDetailData,
+  MatchEvent,
+  NewsArticle,
+  StandingsData,
+} from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL ?? '/.netlify/functions/livescore';
+const NEWS_URL = import.meta.env.VITE_NEWS_API_URL ?? '/.netlify/functions/news';
 
 interface ApiResponse {
   leagues?: LeagueWithMatches[];
@@ -88,6 +96,16 @@ export async function fetchMatchDetail(
     form: data.form ?? undefined,
     h2h: data.h2h ?? undefined,
   };
+}
+
+export async function fetchNews(): Promise<NewsArticle[]> {
+  const response = await fetch(NEWS_URL, { headers: { Accept: 'application/json' } });
+  if (!response.ok) {
+    throw new Error(`Request failed (${response.status})`);
+  }
+  const data: { articles?: NewsArticle[]; error?: string } = await response.json();
+  if (data.error) throw new Error(data.error);
+  return data.articles ?? [];
 }
 
 export function formatKickoff(kickoff: string): string {

@@ -121,3 +121,14 @@ export interface MatchDetail {
   form?: { home: FormResult[]; away: FormResult[] } | null;
   h2h?: H2hRecord | null;
 }
+
+export interface NewsArticle {
+  id: string;
+  headline: string;
+  description: string;
+  published_at: string;
+  image_url: string | null;
+  url: string;
+  byline: string | null;
+  league: string;
+}

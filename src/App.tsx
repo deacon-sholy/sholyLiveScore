@@ -1,10 +1,11 @@
 import { useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
-import { Download } from 'lucide-react';
+import { Download, Newspaper } from 'lucide-react';
 import HomePage from './pages/HomePage';
 import LeaguePage from './pages/LeaguePage';
 import MatchPage from './pages/MatchPage';
 import DownloadPage from './pages/DownloadPage';
+import NewsPage from './pages/NewsPage';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -34,6 +35,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/league/:leagueSlug" element={<LeaguePage />} />
           <Route path="/league/:leagueSlug/match/:matchId" element={<MatchPage />} />
+          <Route path="/news" element={<NewsPage />} />
           <Route path="/download" element={<DownloadPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
@@ -45,7 +47,14 @@ function App() {
         <p className="text-xs text-muted">
           Live data from ESPN · Live scores refresh every 5s
         </p>
-        <p className="mt-2.5">
+        <p className="mt-2.5 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5">
+          <Link
+            to="/news"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted transition-colors hover:text-fg"
+          >
+            <Newspaper className="h-3.5 w-3.5" />
+            Football news
+          </Link>
           <Link
             to="/download"
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted transition-colors hover:text-fg"

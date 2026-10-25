@@ -13,6 +13,7 @@
 
 ## Data source (ESPN)
 - Scores: `https://site.web.api.espn.com/apis/site/v2/sports/soccer/{slug}/scoreboard?...`
+- News: `https://site.api.espn.com/apis/site/v2/sports/soccer/{slug}/news?limit=N` (use `all` for global soccer). Articles expose `headline`, `description`, `published`, `byline`, `images[type=header].url`, `links.web.href`, `categories[]` (league tags) and `type` (`Story`/`HeadlineNews`/`Recap` are readable; skip `Media`/video).
 - Summaries (events, stats, form, h2h): `https://site.web.api.espn.com/apis/site/v2/sports/soccer/{slug}/summary?event={id}`
   - `boxscore.teams[].statistics[]` keys: `possessionPct`, `totalShots`, `shotsOnTarget`, `wonCorners`, `foulsCommitted`, `yellowCards`, `redCards`, `offsides`, `saves`, `accuratePasses`, `totalPasses`, `passPct` (0–1 scale).
   - `lastFiveGames[].events[]`: `gameResult` (W/D/L), `opponent`, `score`, `atVs`, `gameDate`.
@@ -33,7 +34,8 @@
 - Single league fetch: `?league=<slug>[&date=YYYY-MM-DD]` returns that league's scoreboard only (used by `/league/:slug`).
 - Standings: `?standings=<slug>` returns `groups[]` so World Cup/Euro show per-group tables; domestic leagues return a single implicit group. `standings: false` entries (friendlies) have no table.
 - The all-leagues fan-out is capped at 8s with a shared deadline, per-request timeouts derived from remaining time, and 1 attempt when <3s remain. Unfinished leagues fall back to stale cache. Keep total runtime under Netlify's ~10s limit.
-- Routes (react-router-dom): `/` home, `/league/:slug`, `/league/:slug/match/:id`. Every page sets title/description/canonical (+ JSON-LD via `src/lib/seo.ts`). `src/pages/` = HomePage, LeaguePage, MatchPage; shared chrome is `SiteHeader` + App shell.
+- News: `netlify/functions/news.ts` fans out over several ESPN news feeds (`all`, EPL, UCL, Nigeria, South Africa, CAF), dedupes by id/headline, filters to readable article types and caches 2min. `src/pages/NewsPage.tsx` at `/news` links out to ESPN, auto-refreshes every 60s and filters by league tag.
+- Routes (react-router-dom): `/` home, `/news`, `/league/:slug`, `/league/:slug/match/:id`, `/download`. Every page sets title/description/canonical (+ JSON-LD via `src/lib/seo.ts`). `src/pages/` = HomePage, LeaguePage, MatchPage, NewsPage, DownloadPage; shared chrome is `SiteHeader` + App shell.
 - Sitemap: `netlify/functions/sitemap.ts` (redirect from `/sitemap.xml` in netlify.toml; league URLs come from `src/lib/leagues.ts`). No `<lastmod>` — ESPN gives no update timestamp and guessing it hurts SEO.
 - Favorites are client-side only: `src/lib/useFavorites.ts`, localStorage key `sholy-favorite-leagues`; the "favorites" filter fetches `all` then filters in the client.
 - Analytics: `src/lib/analytics.ts` injects gtag only when `VITE_GA_ID` is set; no-op otherwise.

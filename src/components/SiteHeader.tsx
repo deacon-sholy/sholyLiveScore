@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { RefreshCw, Sun, Moon, Zap, Download } from 'lucide-react';
+import { RefreshCw, Sun, Moon, Zap, Download, Newspaper } from 'lucide-react';
 import ShareButton from './ShareButton';
 import { useDarkMode } from '../lib/useDarkMode';
 
@@ -48,6 +48,15 @@ export default function SiteHeader({ refreshing, onRefresh, children }: SiteHead
             )}
 
             <ShareButton title="Sholy Livescore" text="Live football scores, stats & match events" />
+
+            <Link
+              to="/news"
+              aria-label="Football news"
+              className="group flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-surface text-muted transition-colors hover:border-line-strong hover:text-fg sm:w-auto sm:gap-1.5 sm:px-2.5"
+            >
+              <Newspaper className="h-4 w-4" />
+              <span className="hidden text-xs font-semibold sm:inline">News</span>
+            </Link>
 
             <Link
               to="/download"
