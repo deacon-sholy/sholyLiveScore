@@ -38,11 +38,12 @@ function toISODate(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-const REGION_ORDER: LeagueGroup[] = ['international', 'europe', 'americas', 'asia'];
+const REGION_ORDER: LeagueGroup[] = ['international', 'europe', 'africa', 'americas', 'asia'];
 
 const REGION_LABELS: Record<LeagueGroup, string> = {
   international: 'International',
   europe: 'Europe',
+  africa: 'Africa',
   americas: 'Americas',
   asia: 'Asia & Middle East',
 };

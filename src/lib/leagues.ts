@@ -1,4 +1,4 @@
-export type LeagueGroup = 'europe' | 'americas' | 'asia' | 'international';
+export type LeagueGroup = 'europe' | 'africa' | 'americas' | 'asia' | 'international';
 
 export interface LeagueDef {
   slug: string;
@@ -20,13 +20,14 @@ export interface LeagueDef {
 // Curated list of the world's biggest competitions, in display order.
 // The order below is the display order within each region: the home page
 // pins favourites to the top, then buckets the rest by `group`
-// (International → Europe → Americas → Asia). Also the sitemap order.
+// (International → Europe → Africa → Americas → Asia). Also the sitemap order.
 // Empty scoreboards are skipped, so leagues outside their season (or in
 // between tournament windows) simply don't show up.
 export const LEAGUES: LeagueDef[] = [
   // International (senior men's national teams)
   { slug: 'fifa.world', name: 'FIFA World Cup', country: 'International', group: 'international', seoName: 'World Cup' },
   { slug: 'uefa.euro', name: 'UEFA European Championship', country: 'International', group: 'international', seoName: 'Euro' },
+  { slug: 'caf.nations', name: 'Africa Cup of Nations', country: 'Africa', group: 'international', seoName: 'Africa Cup of Nations' },
   { slug: 'fifa.cwc', name: 'FIFA Club World Cup', country: 'International', group: 'international', seoName: 'Club World Cup' },
   { slug: 'uefa.nations', name: 'UEFA Nations League', country: 'International', group: 'international' },
   { slug: 'fifa.worldq.uefa', name: 'World Cup Qualifying', country: 'Europe', group: 'international', seoName: 'World Cup Qualifying Europe' },
@@ -68,6 +69,17 @@ export const LEAGUES: LeagueDef[] = [
   { slug: 'fra.2', name: 'Ligue 2', country: 'France', group: 'europe' },
   // Europe - women's top flights
   { slug: 'eng.w.1', name: "Women's Super League", country: 'England', group: 'europe', seoName: "Women's Super League" },
+  // Africa
+  { slug: 'nga.1', name: 'Nigerian Professional League', country: 'Nigeria', group: 'africa' },
+  { slug: 'rsa.1', name: 'South African Premiership', country: 'South Africa', group: 'africa' },
+  { slug: 'gha.1', name: 'Ghanaian Premier League', country: 'Ghana', group: 'africa' },
+  { slug: 'ken.1', name: 'Kenyan Premier League', country: 'Kenya', group: 'africa' },
+  { slug: 'zam.1', name: 'Zambian Super League', country: 'Zambia', group: 'africa' },
+  { slug: 'uga.1', name: 'Ugandan Premier League', country: 'Uganda', group: 'africa' },
+  { slug: 'zim.1', name: 'Zimbabwean Premier Soccer League', country: 'Zimbabwe', group: 'africa' },
+  { slug: 'rsa.2', name: 'South African First Division', country: 'South Africa', group: 'africa' },
+  { slug: 'caf.champions', name: 'CAF Champions League', country: 'Africa', group: 'africa' },
+  { slug: 'caf.confed', name: 'CAF Confederation Cup', country: 'Africa', group: 'africa' },
   // Americas
   { slug: 'usa.1', name: 'MLS', country: 'USA', group: 'americas' },
   { slug: 'usa.nwsl', name: 'NWSL', country: 'USA', group: 'americas' },
