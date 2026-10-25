@@ -18,6 +18,7 @@ const SOURCES = [
 const READABLE_TYPES = new Set(['story', 'headlinenews', 'recap']);
 const CACHE_TTL = 120_000;
 const MAX_ARTICLES = 60;
+const MAX_AGE_MS = 45 * 24 * 60 * 60 * 1000;
 
 interface EspnImage {
   type?: string;
@@ -125,9 +126,13 @@ async function fetchSource(source: (typeof SOURCES)[number]): Promise<NewsArticl
     });
     if (!response.ok) return [];
     const json = (await response.json()) as EspnNewsResponse;
+    const cutoff = Date.now() - MAX_AGE_MS;
     return (json.articles ?? [])
       .map((article) => mapArticle(article, source.label))
-      .filter((article): article is NewsArticle => article !== null);
+      .filter(
+        (article): article is NewsArticle =>
+          article !== null && new Date(article.published_at).getTime() >= cutoff,
+      );
   } catch {
     return [];
   } finally {
