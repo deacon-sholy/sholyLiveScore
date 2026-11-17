@@ -1,7 +1,8 @@
 # Repo notes for AI coding sessions
 
 ## Verification & health
-- Build: `npm run build`. Typecheck: `npm run typecheck`. Lint: `npm run lint`. Run all three before finishing any change.
+- Build: `npm run build` (Vite build + `scripts/prerender.mjs`). Typecheck: `npm run typecheck`. Lint: `npm run lint`. Tests: `npm run test` (Vitest). Run all four before finishing any change.
+- Vitest is pinned to `^2.1.9` for Vite 5 compatibility (v5 needs Vite 6+). Keep tests out of `netlify/functions/` — Netlify treats every file there as a deployable function and rejects dots in function names; tests live in `tests/`.
 - Commit message style: lowercase imperative, e.g. `feat: premier league first in stable league order; add saudi pro league, indian super league`.
 - Uncommitted work should always end a session committed + pushed (`git push`) and, if the site should be live, manually deployed.
 
@@ -38,8 +39,12 @@
 - Routes (react-router-dom): `/` home, `/news`, `/news/:id`, `/league/:slug`, `/league/:slug/match/:id`, `/download`. Every page sets title/description/canonical (+ JSON-LD via `src/lib/seo.ts`). `src/pages/` = HomePage, LeaguePage, MatchPage, NewsPage, NewsArticlePage, DownloadPage; shared chrome is `SiteHeader` + App shell.
 - Sitemap: `netlify/functions/sitemap.ts` (redirect from `/sitemap.xml` in netlify.toml; league URLs come from `src/lib/leagues.ts`). No `<lastmod>` — ESPN gives no update timestamp and guessing it hurts SEO.
 - Favorites are client-side only: `src/lib/useFavorites.ts`, localStorage key `sholy-favorite-leagues`; the "favorites" filter fetches `all` then filters in the client.
+- Personalization is all client-side localStorage: `useFollowedTeams` (`sholy-favorite-teams`, powers the "My Teams" filter and goal alerts), `useSavedArticles` (`sholy-saved-articles`, news bookmarks + "Saved" tab), install-prompt dismissal (`sholy-install-dismissed`), and goal-alert opt-in (`sholy-goal-alerts`). `useGoalAlerts` only fires when the tab is hidden and a followed team's score actually increases; the baseline is set on first render so enabling mid-match never fires retroactively. Goal notifications go through the SW (`public/sw.js` handles `notificationclick` by focusing/opening the match URL).
+- Calendar export: `src/lib/calendar.ts` builds a 2-hour `.ics` with a match deep link; only shown for scheduled matches.
+- Standings seasons: the modal offers the last 11 seasons via `?standings=<slug>&season=YYYY` (validated in the function).
+- Durable cache: `netlify/functions/livescore.ts` layers Netlify Blobs (`@netlify/blobs`, store `sholy-scores-cache`) behind the in-memory cache; it silently no-ops outside Netlify. Keep total function time under the ~10s limit.
 - Analytics: `src/lib/analytics.ts` injects gtag only when `VITE_GA_ID` is set; no-op otherwise.
 - Android: `npm run apk` runs `scripts/build-apk.ps1` (gradle `assembleRelease` + publish) and refreshes `public/downloads/sholy-scores-<version>.apk` plus the `SholyScores-<version>.apk` root copy. `APP_VERSION` in `src/lib/appInfo.ts` must match `versionName` in `android/app/build.gradle` — the `/download` link is built from it. `android/keystore.properties` and `android/sholy-release.keystore` are gitignored (never commit the key); `public/.well-known/assetlinks.json` must carry that keystore's SHA-256 or App Links verification fails (harmless — links then just open in the browser).
-- Netlify: static files win over the `/*` → `/index.html` rewrite (shadowing), so `/downloads/*.apk` and `/.well-known/assetlinks.json` are served as files; only `/sitemap.xml` is redirected to a function.
+- Netlify: static files win over the `/*` → `/index.html` rewrite (shadowing), so `/downloads/*.apk` and `/.well-known/assetlinks.json` are served as files. `/sitemap.xml` is rewritten to a function. `scripts/prerender.mjs` emits flat shells (`news.html`, `download.html`, `league/<slug>.html`) and `netlify.toml` rewrites the clean URLs to them (status 200) — target flat files, not `<dir>/index.html`, or Netlify's pretty-URL 301 adds a trailing slash and breaks the canonical tags.
 - Smoke test pages with headless Edge: `npm run preview`, then `msedge.exe --headless=new --dump-dom http://localhost:4173/<route>` (vite preview binds `::1`).
 - Known legacy cleanup: `C:\Users\dell\AppData\Local\Temp\opencode\deploy-check` and `api-worktree.ts` are obsolete temp clones/backups — ignore.

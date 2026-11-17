@@ -60,7 +60,7 @@ const pages = [
     canonical: `${SITE}/`,
   },
   {
-    file: 'news/index.html',
+    file: 'news.html',
     title: 'Football News · Transfers, Match Reports & Headlines | Sholy Livescore',
     description:
       'The latest football news, transfer stories, match reports and headlines from the Premier League, Champions League, Africa and around the world.',
@@ -74,7 +74,7 @@ const pages = [
     },
   },
   {
-    file: 'download/index.html',
+    file: 'download.html',
     title: 'Download the Sholy Scores App · Sholy Livescore',
     description:
       'Get the free Sholy Scores Android app (APK): live football scores, standings, stats and match events. Lightweight, Android 7.0 and up, no account needed.',
@@ -84,7 +84,7 @@ const pages = [
 
 for (const league of await leagueDefs()) {
   pages.push({
-    file: `league/${league.slug}/index.html`,
+    file: `league/${league.slug}.html`,
     title: `${league.name} · Live Scores & Results | Sholy Livescore`,
     description: `${league.name} — live scores, fixtures, results, standings and stats. Following the ${league.name} on Sholy Livescore.`,
     canonical: `${SITE}/league/${league.slug}`,

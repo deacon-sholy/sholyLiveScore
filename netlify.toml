@@ -7,6 +7,23 @@
   to = "/.netlify/functions/sitemap"
   status = 200
 
+# Serve the prerendered shells at clean URLs. Target flat .html files (not
+# directory indexes) so Netlify's trailing-slash 301 doesn't fire.
+[[redirects]]
+  from = "/news"
+  to = "/news.html"
+  status = 200
+
+[[redirects]]
+  from = "/download"
+  to = "/download.html"
+  status = 200
+
+[[redirects]]
+  from = "/league/:slug"
+  to = "/league/:slug.html"
+  status = 200
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
