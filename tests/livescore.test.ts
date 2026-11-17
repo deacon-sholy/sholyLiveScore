@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getLeague } from '../../src/lib/leagues';
+import { getLeague } from '../src/lib/leagues';
 import {
   buildMatchDetail,
   mapEvent,
@@ -10,7 +10,7 @@ import {
   transformScoreboard,
   type EspnScoreboard,
   type EspnSummary,
-} from './livescore';
+} from '../netlify/functions/livescore';
 
 const league = getLeague('eng.1')!;
 

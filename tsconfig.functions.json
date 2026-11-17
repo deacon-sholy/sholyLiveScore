@@ -18,5 +18,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["netlify/functions"]
+  "include": ["netlify/functions", "tests"]
 }
