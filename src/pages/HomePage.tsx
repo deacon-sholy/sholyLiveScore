@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Star,
+  Heart,
   AlertCircle,
   SearchX,
 } from 'lucide-react';
@@ -20,9 +21,11 @@ import LeagueSection from '../components/LeagueSection';
 import SearchBar from '../components/SearchBar';
 import StandingsModal from '../components/StandingsModal';
 import { useFavorites } from '../lib/useFavorites';
+import { useFollowedTeams } from '../lib/useFollowedTeams';
+import { useGoalAlerts } from '../lib/useGoalAlerts';
 import { applySeo } from '../lib/seo';
 
-type Filter = 'all' | 'live' | 'finished' | 'scheduled' | 'favorites';
+type Filter = 'all' | 'live' | 'finished' | 'scheduled' | 'favorites' | 'teams';
 
 const FILTERS: { key: Filter; label: string; icon: typeof Radio }[] = [
   { key: 'all', label: 'All', icon: LayoutGrid },
@@ -30,6 +33,7 @@ const FILTERS: { key: Filter; label: string; icon: typeof Radio }[] = [
   { key: 'finished', label: 'Finished', icon: CheckCircle2 },
   { key: 'scheduled', label: 'Upcoming', icon: CalendarDays },
   { key: 'favorites', label: 'My Leagues', icon: Star },
+  { key: 'teams', label: 'My Teams', icon: Heart },
 ];
 
 function toISODate(date: Date): string {
@@ -92,6 +96,10 @@ export default function HomePage() {
   const [search, setSearch] = useState('');
   const [standingsLeague, setStandingsLeague] = useState<{ slug: string; name: string } | null>(null);
   const { favoriteSlugs, toggleFavorite } = useFavorites();
+  const { teams: followedTeams } = useFollowedTeams();
+  const followedIds = useMemo(() => followedTeams.map((t) => t.id), [followedTeams]);
+  const allMatches = useMemo(() => leagues.flatMap((l) => l.matches), [leagues]);
+  useGoalAlerts(allMatches, followedIds);
 
   // Toggling a favourite must not re-fetch: the raw league list is cached in
   // state and favourites are applied in the memo below.
@@ -150,16 +158,27 @@ export default function HomePage() {
     navigate(`/league/${match.league_slug}/match/${match.id}`);
   };
 
-  // Status, favourites and search are all pure client-side views of one
-  // fetch, so none of them can trigger a network request.
+  // Status, favourites, followed teams and search are pure client-side views
+  // of one fetch, so none of them can trigger a network request.
   const filteredLeagues = useMemo(() => {
     let result = filterByStatus(
       leagues,
-      filter === 'favorites' ? 'all' : (filter as StatusFilter),
+      filter === 'favorites' || filter === 'teams' ? 'all' : (filter as StatusFilter),
     );
 
     if (filter === 'favorites') {
       result = result.filter((l) => favoriteSlugs.includes(l.slug));
+    }
+
+    if (filter === 'teams') {
+      result = result
+        .map((l) => ({
+          ...l,
+          matches: l.matches.filter(
+            (m) => followedIds.includes(m.home_team.id) || followedIds.includes(m.away_team.id),
+          ),
+        }))
+        .filter((l) => l.matches.length > 0);
     }
 
     const q = search.trim().toLowerCase();
@@ -176,15 +195,16 @@ export default function HomePage() {
         ),
       }))
       .filter((l) => l.matches.length > 0);
-  }, [leagues, search, filter, favoriteSlugs]);
+  }, [leagues, search, filter, favoriteSlugs, followedIds]);
 
   // Favourites are pinned to the top, then the rest is bucketed by region so
   // the long list stays scannable. Under the "My Leagues" tab everything is a
   // favourite, so the pinning block would just repeat the region headers.
   const leagueBlocks = useMemo<LeagueBlock[]>(() => {
     const isFav = (slug: string) => favoriteSlugs.includes(slug);
-    const pinned = filter === 'favorites' ? [] : filteredLeagues.filter((l) => isFav(l.slug));
-    const rest = filter === 'favorites' ? filteredLeagues : filteredLeagues.filter((l) => !isFav(l.slug));
+    const pinning = filter === 'favorites' || filter === 'teams';
+    const pinned = pinning ? [] : filteredLeagues.filter((l) => isFav(l.slug));
+    const rest = pinning ? filteredLeagues : filteredLeagues.filter((l) => !isFav(l.slug));
 
     const blocks: LeagueBlock[] = [];
     if (pinned.length > 0) {
@@ -294,7 +314,7 @@ export default function HomePage() {
         </div>
       </SiteHeader>
 
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+      <main id="main-content" className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start xl:grid-cols-[minmax(0,1fr)_320px]">
           <HomeNews className="lg:col-start-2 lg:row-start-1" />
           <div className="min-w-0 lg:col-start-1 lg:row-start-1">
@@ -321,6 +341,8 @@ export default function HomePage() {
                 <SearchX className="h-7 w-7 text-subtle" />
               ) : filter === 'favorites' && favoriteSlugs.length === 0 ? (
                 <Star className="h-7 w-7 text-amber-500" />
+              ) : filter === 'teams' ? (
+                <Heart className="h-7 w-7 text-accent-500" />
               ) : (
                 <CalendarDays className="h-7 w-7 text-subtle" />
               )
@@ -332,14 +354,24 @@ export default function HomePage() {
                   ? favoriteSlugs.length === 0
                     ? 'No favourite leagues yet'
                     : 'No matches in your favourite leagues'
-                  : 'No matches found'
+                  : filter === 'teams'
+                    ? followedTeams.length === 0
+                      ? 'No teams followed yet'
+                      : 'No matches for your teams'
+                    : 'No matches found'
             }
             body={
               search
                 ? 'Try a different team or league name'
-                : filter === 'favorites' && favoriteSlugs.length === 0
-                  ? 'Tap the star on any league to add it here'
-                  : 'Try a different filter'
+                : filter === 'favorites'
+                  ? favoriteSlugs.length === 0
+                    ? 'Tap the star on any league to add it here'
+                    : 'Try a different date or filter'
+                  : filter === 'teams'
+                    ? followedTeams.length === 0
+                      ? 'Tap the heart on a team in any match to follow it'
+                      : 'Try another date, or follow more teams'
+                    : 'Try a different filter'
             }
           />
         ) : (

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AlertCircle, CalendarX, ChevronLeft, Star } from 'lucide-react';
 import type { LeagueWithMatches } from '../types';
@@ -7,6 +7,8 @@ import SiteHeader from '../components/SiteHeader';
 import LeagueSection from '../components/LeagueSection';
 import StandingsModal from '../components/StandingsModal';
 import { useFavorites } from '../lib/useFavorites';
+import { useFollowedTeams } from '../lib/useFollowedTeams';
+import { useGoalAlerts } from '../lib/useGoalAlerts';
 import { applySeo, isKnownLeague, leagueName, leagueSlugTitle, SITE } from '../lib/seo';
 
 function toISODate(date: Date): string {
@@ -24,6 +26,10 @@ export default function LeaguePage() {
   const [error, setError] = useState<string | null>(null);
   const [standingsOpen, setStandingsOpen] = useState(false);
   const { favoriteSlugs, toggleFavorite } = useFavorites();
+  const { teams: followedTeams } = useFollowedTeams();
+  const followedIds = useMemo(() => followedTeams.map((t) => t.id), [followedTeams]);
+  const allMatches = useMemo(() => league?.matches ?? [], [league]);
+  useGoalAlerts(allMatches, followedIds);
 
   const name = league?.name ?? leagueName(leagueSlug);
 
@@ -85,7 +91,7 @@ export default function LeaguePage() {
         </div>
       </SiteHeader>
 
-      <main className="mx-auto max-w-3xl px-4 py-5 sm:px-6 sm:py-6">
+      <main id="main-content" className="mx-auto max-w-3xl px-4 py-5 sm:px-6 sm:py-6">
         {loading && !league ? (
           <div className="flex min-h-[300px] flex-col items-center justify-center gap-3">
             <div className="space-y-2" aria-hidden>{Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton h-[58px] rounded-2xl" />)}</div>

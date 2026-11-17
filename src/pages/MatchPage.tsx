@@ -1,8 +1,11 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AlertCircle, ChevronLeft, SearchX } from 'lucide-react';
 import type { Match } from '../types';
 import { fetchMatchDetail, fetchMatchScore } from '../lib/api';
+import { downloadCalendar } from '../lib/calendar';
+import { useFollowedTeams } from '../lib/useFollowedTeams';
+import { useGoalAlerts } from '../lib/useGoalAlerts';
 import SiteHeader from '../components/SiteHeader';
 import MatchDetail from '../components/MatchDetail';
 import { applySeo, isKnownLeague, leagueName, SITE } from '../lib/seo';
@@ -14,6 +17,10 @@ export default function MatchPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
+  const { teams: followedTeams, toggleTeam } = useFollowedTeams();
+  const followedIds = useMemo(() => followedTeams.map((t) => t.id), [followedTeams]);
+  const watchedMatches = useMemo(() => (match ? [match] : []), [match]);
+  useGoalAlerts(watchedMatches, followedIds);
 
   useEffect(() => {
     let alive = true;
@@ -127,7 +134,10 @@ export default function MatchPage() {
 
   return (
     <>
-      <SiteHeader>
+      <SiteHeader
+        shareTitle={home && away ? `${home} vs ${away} · Sholy Livescore` : undefined}
+        shareText={home && away ? `Follow ${home} vs ${away} live on Sholy Livescore` : undefined}
+      >
         <div className="flex items-center gap-2 pb-2.5 pt-2.5 text-sm sm:pb-3 sm:pt-3">
           <button
             onClick={() => navigate(`/league/${leagueSlug}`)}
@@ -142,7 +152,7 @@ export default function MatchPage() {
         </div>
       </SiteHeader>
 
-      <main className="px-4 py-5 sm:px-6 sm:py-6">
+      <main id="main-content" className="px-4 py-5 sm:px-6 sm:py-6">
         {loading && !match ? (
           <div className="mx-auto max-w-2xl space-y-4" aria-hidden>
             <div className="skeleton h-56 rounded-2xl" />
@@ -162,7 +172,13 @@ export default function MatchPage() {
             </button>
           </div>
         ) : match ? (
-          <MatchDetail match={match} onBack={() => navigate(`/league/${leagueSlug}`)} />
+          <MatchDetail
+            match={match}
+            onBack={() => navigate(`/league/${leagueSlug}`)}
+            followedTeamIds={followedIds}
+            onToggleFollow={toggleTeam}
+            onAddCalendar={() => downloadCalendar(match)}
+          />
         ) : (
           <NotFound slug="match" />
         )}

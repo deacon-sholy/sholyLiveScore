@@ -76,8 +76,10 @@ export async function fetchMatchScore(leagueSlug: string, eventId: string): Prom
   return data.match ?? null;
 }
 
-export async function fetchStandings(leagueSlug: string): Promise<StandingsData | null> {
-  const data = await getJson({ standings: leagueSlug });
+export async function fetchStandings(leagueSlug: string, season?: string): Promise<StandingsData | null> {
+  const params: Record<string, string> = { standings: leagueSlug };
+  if (season) params.season = season;
+  const data = await getJson(params);
   return data.standings ?? null;
 }
 

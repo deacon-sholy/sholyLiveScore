@@ -1,17 +1,40 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { RefreshCw, Sun, Moon, Zap, Download, Newspaper } from 'lucide-react';
+import { RefreshCw, Sun, Moon, Zap, Download, Newspaper, Bell, BellOff } from 'lucide-react';
 import ShareButton from './ShareButton';
 import { useDarkMode } from '../lib/useDarkMode';
+import { alertsEnabled, disableAlerts, requestAlerts } from '../lib/notifications';
 
 interface SiteHeaderProps {
   refreshing?: boolean;
   onRefresh?: () => void;
+  shareTitle?: string;
+  shareText?: string;
   children?: ReactNode;
 }
 
-export default function SiteHeader({ refreshing, onRefresh, children }: SiteHeaderProps) {
+export default function SiteHeader({
+  refreshing,
+  onRefresh,
+  shareTitle = 'Sholy Livescore',
+  shareText = 'Live football scores, stats & match events',
+  children,
+}: SiteHeaderProps) {
   const { dark, toggle: toggleDark } = useDarkMode();
+  const [alertsOn, setAlertsOn] = useState(() => alertsEnabled());
+
+  const handleAlerts = async () => {
+    if (alertsOn) {
+      disableAlerts();
+      setAlertsOn(false);
+      return;
+    }
+    if (!('Notification' in window)) return;
+    const permission = Notification.permission === 'granted' ? 'granted' : await requestAlerts();
+    setAlertsOn(permission === 'granted');
+  };
+
+  const alertsBlocked = 'Notification' in window && Notification.permission === 'denied';
 
   return (
     // The header is pinned, so it carries the top safe-area inset itself; the
@@ -47,7 +70,22 @@ export default function SiteHeader({ refreshing, onRefresh, children }: SiteHead
               </button>
             )}
 
-            <ShareButton title="Sholy Livescore" text="Live football scores, stats & match events" />
+            <button
+              onClick={handleAlerts}
+              aria-label={alertsOn ? 'Turn off goal alerts' : 'Turn on goal alerts'}
+              title={
+                alertsBlocked
+                  ? 'Goal alerts are blocked in your browser settings'
+                  : alertsOn
+                    ? 'Goal alerts on for followed teams'
+                    : 'Get a notification when a followed team scores'
+              }
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-surface text-muted transition-colors hover:border-line-strong hover:text-fg"
+            >
+              {alertsOn ? <Bell className="h-4 w-4 text-accent-500" /> : <BellOff className="h-4 w-4" />}
+            </button>
+
+            <ShareButton title={shareTitle} text={shareText} />
 
             <Link
               to="/news"

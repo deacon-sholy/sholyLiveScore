@@ -117,7 +117,7 @@ export default function DownloadPage() {
         </div>
       </SiteHeader>
 
-      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
+      <main id="main-content" className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
         {/* Hero */}
         <section className="animate-slide-up overflow-hidden rounded-3xl border border-line bg-surface shadow-card">
           <div className="flex flex-col items-center gap-5 px-5 py-8 text-center sm:px-8 sm:py-10">

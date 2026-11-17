@@ -1,4 +1,5 @@
 import type { Handler, HandlerEvent } from '@netlify/functions';
+import { getStore, type Store } from '@netlify/blobs';
 import { LEAGUES, LEAGUE_INDEX, getLeague, type LeagueDef } from '../../src/lib/leagues';
 
 // ESPN's public soccer API is free, requires no key and covers 100+ leagues.
@@ -71,6 +72,67 @@ function getStale(key: string): unknown | null {
 function setCache(key: string, data: unknown, ttl: number = CACHE_TTL): void {
   cache.set(key, { data, timestamp: Date.now(), ttl });
   pruneCache();
+}
+
+// ---------------------------------------------------------------------------
+// Optional durable cache. Netlify Blobs survives cold starts and is shared by
+// every function instance, so a stale fallback still exists when ESPN is down.
+// Outside Netlify (or without a Blobs context) everything silently no-ops.
+// ---------------------------------------------------------------------------
+
+interface PersistentEntry {
+  data: unknown;
+  timestamp: number;
+  ttl: number;
+}
+
+let blobStore: Store | null | undefined;
+
+function getBlobStore(): Store | null {
+  if (blobStore !== undefined) return blobStore;
+  try {
+    blobStore = getStore({ name: 'sholy-scores-cache', consistency: 'eventual' });
+  } catch {
+    blobStore = null;
+  }
+  return blobStore;
+}
+
+async function readPersistent(key: string, ttl: number): Promise<unknown | null> {
+  const store = getBlobStore();
+  if (!store) return null;
+  try {
+    const entry = (await store.get(key, { type: 'json' })) as PersistentEntry | null;
+    if (!entry || typeof entry.timestamp !== 'number') return null;
+    if (Date.now() - entry.timestamp >= (entry.ttl ?? ttl)) return null;
+    return entry.data;
+  } catch {
+    return null;
+  }
+}
+
+async function writePersistent(key: string, data: unknown, ttl: number): Promise<void> {
+  const store = getBlobStore();
+  if (!store) return;
+  try {
+    await store.setJSON(key, { data, timestamp: Date.now(), ttl } satisfies PersistentEntry);
+  } catch {
+    // Best effort — the in-memory cache still works.
+  }
+}
+
+/** Local memory first (free), then Blobs, so cold starts can reuse a result. */
+async function cachedValue(key: string, ttl: number): Promise<unknown | null> {
+  const local = getCached(key, ttl);
+  if (local) return local;
+  const persisted = await readPersistent(key, ttl);
+  if (persisted) setCache(key, persisted, ttl);
+  return persisted;
+}
+
+async function remember(key: string, data: unknown, ttl: number): Promise<void> {
+  setCache(key, data, ttl);
+  await writePersistent(key, data, ttl);
 }
 
 // ---------------------------------------------------------------------------
@@ -258,7 +320,7 @@ interface EspnCompetitor {
   team: EspnTeamRef;
 }
 
-interface EspnDetail {
+export interface EspnDetail {
   clock?: { displayValue?: string };
   scoringPlay?: boolean;
   redCard?: boolean;
@@ -276,7 +338,7 @@ interface EspnStatus {
   type: { state: string; shortDetail?: string };
 }
 
-interface EspnCompetition {
+export interface EspnCompetition {
   id?: string;
   date?: string;
   status?: EspnStatus;
@@ -284,13 +346,13 @@ interface EspnCompetition {
   details?: EspnDetail[];
 }
 
-interface EspnEvent {
+export interface EspnEvent {
   id: string;
   date: string;
   competitions?: EspnCompetition[];
 }
 
-interface EspnScoreboard {
+export interface EspnScoreboard {
   events?: EspnEvent[];
   leagues?: Array<{ logos?: Array<{ href: string }> }>;
 }
@@ -300,7 +362,7 @@ interface EspnStandingEntry {
   stats?: Array<{ name: string; displayValue: string }>;
 }
 
-function mapStatus(state: string, clockDisplay?: string): MatchStatus {
+export function mapStatus(state: string, clockDisplay?: string): MatchStatus {
   switch (state) {
     case 'in': {
       if (clockDisplay?.toUpperCase() === 'HT' || clockDisplay?.toUpperCase().startsWith('HALF')) {
@@ -315,7 +377,7 @@ function mapStatus(state: string, clockDisplay?: string): MatchStatus {
   }
 }
 
-function parseMinute(clockDisplay: string): number | null {
+export function parseMinute(clockDisplay: string): number | null {
   // Handles "67'", "90'+5'" and "45+2".
   const match = clockDisplay.match(/(\d+)/);
   return match ? parseInt(match[1], 10) : null;
@@ -342,7 +404,7 @@ function mapTeam(team: EspnTeamRef): Team {
   };
 }
 
-function mapEvent(detail: EspnDetail, teamNameById?: Record<string, string>): MatchEvent | null {
+export function mapEvent(detail: EspnDetail, teamNameById?: Record<string, string>): MatchEvent | null {
   const participantNames = (detail.participants || []).map((p) => p.athlete.displayName);
   const involvedNames = (detail.athletesInvolved || []).map((a) => a.displayName);
   const names = [...participantNames, ...involvedNames].filter(Boolean);
@@ -410,7 +472,7 @@ function compareMatches(a: Match, b: Match): number {
   return new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime();
 }
 
-function buildMatch(
+export function buildMatch(
   league: LeagueDef,
   event: EspnEvent,
   comp: EspnCompetition,
@@ -449,7 +511,7 @@ function buildMatch(
   };
 }
 
-function transformScoreboard(league: LeagueDef, data: EspnScoreboard): LeagueWithMatches | null {
+export function transformScoreboard(league: LeagueDef, data: EspnScoreboard): LeagueWithMatches | null {
   const events = data.events ?? [];
   if (events.length === 0) return null;
 
@@ -487,7 +549,7 @@ function sortLeagues(leagues: LeagueWithMatches[]): void {
   });
 }
 
-function parseStandings(json: unknown, leagueName: string): StandingsData | null {
+export function parseStandings(json: unknown, leagueName: string): StandingsData | null {
   // ESPN's standings API nests tables under children[].standings.entries.
   // Tournaments (World Cup, Euro) have one child per group; domestic leagues
   // have a single unnamed child.
@@ -530,7 +592,7 @@ interface EspnSummaryBoxscore {
   }>;
 }
 
-interface EspnSummary {
+export interface EspnSummary {
   header?: {
     competitions?: EspnCompetition[];
     league?: { logos?: Array<{ href: string }> };
@@ -606,7 +668,7 @@ interface MatchExtras {
   h2h: { title: string; summary: string; meetings: H2hMeeting[] } | null;
 }
 
-function statNumber(stats: Record<string, string>, key: string): number | null {
+export function statNumber(stats: Record<string, string>, key: string): number | null {
   const raw = stats[key];
   if (!raw) return null;
   if (key === 'passPct' && raw !== '') {
@@ -774,7 +836,7 @@ interface MatchDetailPayload {
   h2h: MatchExtras['h2h'];
 }
 
-function buildMatchDetail(league: LeagueDef, json: EspnSummary): MatchDetailPayload {
+export function buildMatchDetail(league: LeagueDef, json: EspnSummary): MatchDetailPayload {
   const comp = json.header?.competitions?.[0];
   const leagueLogo = json.header?.league?.logos?.[0]?.href ?? null;
   const home = comp?.competitors?.find((c) => c.homeAway === 'home');
@@ -828,14 +890,16 @@ export const handler: Handler = async (event: HandlerEvent) => {
       if (!league) {
         return jsonResponse(404, { error: 'Unknown league' }, origin);
       }
-      const cacheKey = `standings_${standingsSlug}`;
-      const cached = getCached(cacheKey, STANDINGS_CACHE_TTL);
+      const season = query.season && /^\d{4}$/.test(query.season) ? query.season : null;
+      const cacheKey = `standings_${standingsSlug}${season ? `_${season}` : ''}`;
+      const cached = await cachedValue(cacheKey, STANDINGS_CACHE_TTL);
       if (cached) return jsonResponse(200, { standings: cached }, origin);
 
-      const json = await fetchJson(`${ESPN_STANDINGS_BASE}/${standingsSlug}/standings`, 6000);
+      const url = `${ESPN_STANDINGS_BASE}/${standingsSlug}/standings${season ? `?season=${season}` : ''}`;
+      const json = await fetchJson(url, 6000);
       const standings = json ? parseStandings(json, league.name) : null;
       if (standings) {
-        setCache(cacheKey, standings);
+        await remember(cacheKey, standings, STANDINGS_CACHE_TTL);
       } else {
         // Keep serving the last good table rather than an empty modal.
         const stale = getStale(cacheKey) as StandingsData | null;
@@ -854,7 +918,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
       }
       const dateParam = normalizeDateParam(query.date);
       const cacheKey = `league_${slug}_${dateParam ?? 'today'}`;
-      const cached = getCached(cacheKey);
+      const cached = await cachedValue(cacheKey, CACHE_TTL);
       if (cached) return jsonResponse(200, { leagues: cached }, origin);
 
       const url = dateParam
@@ -863,7 +927,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
       const json = await fetchJson(url);
       const transformed = json ? transformScoreboard(league, json as EspnScoreboard) : null;
       const leagues = transformed ? [transformed] : [];
-      setCache(cacheKey, leagues);
+      await remember(cacheKey, leagues, CACHE_TTL);
       return jsonResponse(200, { leagues }, origin);
     }
 
@@ -896,7 +960,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
       const cacheKey = `match_${leagueSlug}_${eventId}`;
       // Cache the whole payload — caching only `events` used to drop
       // stats/form/h2h on every cache hit.
-      const cached = getCached(cacheKey, MATCH_CACHE_TTL) as MatchDetailPayload | null;
+      const cached = (await cachedValue(cacheKey, MATCH_CACHE_TTL)) as MatchDetailPayload | null;
       if (cached) return jsonResponse(200, cached, origin);
 
       const json = await fetchJson(`${ESPN_BASE}/${leagueSlug}/summary?event=${eventId}`, 7000);
@@ -907,14 +971,14 @@ export const handler: Handler = async (event: HandlerEvent) => {
       }
 
       const detail = buildMatchDetail(league, json as EspnSummary);
-      setCache(cacheKey, detail);
+      await remember(cacheKey, detail, MATCH_CACHE_TTL);
       return jsonResponse(200, detail, origin);
     }
 
     // GET /livescore?date=YYYY-MM-DD → all leagues' scoreboards for a day
     const dateParam = normalizeDateParam(query.date);
     const mainCacheKey = dateParam ? `livescore_${dateParam}` : 'livescore_main';
-    const cached = getCached(mainCacheKey);
+    const cached = await cachedValue(mainCacheKey, CACHE_TTL);
     if (cached) return jsonResponse(200, { leagues: cached }, origin);
 
     const scoreboardUrl = (league: LeagueDef) =>
@@ -960,7 +1024,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
 
     // Keep a partial result only briefly so the next request re-fetches the
     // leagues that missed the deadline instead of serving gaps for a full TTL.
-    setCache(mainCacheKey, leagues, partial ? 5_000 : CACHE_TTL);
+    await remember(mainCacheKey, leagues, partial ? 5_000 : CACHE_TTL);
     return jsonResponse(200, { leagues }, origin);
   } catch (err) {
     return jsonResponse(

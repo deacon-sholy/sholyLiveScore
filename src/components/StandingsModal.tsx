@@ -9,12 +9,17 @@ interface StandingsModalProps {
   onClose: () => void;
 }
 
+const THIS_YEAR = new Date().getFullYear();
+const SEASONS = Array.from({ length: 11 }, (_, i) => String(THIS_YEAR - i));
+
 export default function StandingsModal({ leagueSlug, leagueName, onClose }: StandingsModalProps) {
   const [data, setData] = useState<StandingsData | null>(null);
   const [groupIndex, setGroupIndex] = useState(0);
+  const [season, setSeason] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -23,7 +28,7 @@ export default function StandingsModal({ leagueSlug, leagueName, onClose }: Stan
       setLoading(true);
       setError(null);
       try {
-        const standings = await fetchStandings(leagueSlug);
+        const standings = await fetchStandings(leagueSlug, season || undefined);
         if (cancelled) return;
         if (!standings || standings.groups.length === 0) {
           setError('Standings not available for this league');
@@ -43,11 +48,28 @@ export default function StandingsModal({ leagueSlug, leagueName, onClose }: Stan
     return () => {
       cancelled = true;
     };
-  }, [leagueSlug]);
+  }, [leagueSlug, season]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (e.key !== 'Tab' || !dialogRef.current) return;
+      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
     document.addEventListener('keydown', onKey);
     // Prevent the page behind the sheet from scrolling.
@@ -71,6 +93,7 @@ export default function StandingsModal({ leagueSlug, leagueName, onClose }: Stan
         onClick={onClose}
       />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={`${leagueName} standings`}
@@ -92,6 +115,19 @@ export default function StandingsModal({ leagueSlug, leagueName, onClose }: Stan
               <p className="text-[11px] text-muted">Standings</p>
             </div>
           </div>
+          <select
+            value={season}
+            onChange={(e) => setSeason(e.target.value)}
+            aria-label="Standings season"
+            className="mr-1 rounded-lg border border-line bg-surface px-2 py-1 text-[11px] font-semibold text-fg"
+          >
+            <option value="">Latest</option>
+            {SEASONS.map((year) => (
+              <option key={year} value={year}>
+                {year}/{String(Number(year) + 1).slice(-2)}
+              </option>
+            ))}
+          </select>
           <button
             ref={closeRef}
             type="button"

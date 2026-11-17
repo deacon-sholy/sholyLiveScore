@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { AlertCircle, ChevronLeft, Clock3, Newspaper } from 'lucide-react';
+import { AlertCircle, Bookmark, BookmarkCheck, ChevronLeft, Clock3, Newspaper } from 'lucide-react';
 import type { NewsArticleDetail } from '../types';
 import { fetchNewsArticle } from '../lib/api';
+import { useSavedArticles } from '../lib/useSavedArticles';
 import SiteHeader from '../components/SiteHeader';
 import { applySeo, SITE } from '../lib/seo';
 import { fullDate, timeAgo } from '../lib/time';
@@ -12,6 +13,7 @@ export default function NewsArticlePage() {
   const [article, setArticle] = useState<NewsArticleDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { toggleSave, isSaved } = useSavedArticles();
 
   useEffect(() => {
     let alive = true;
@@ -84,7 +86,7 @@ export default function NewsArticlePage() {
         </div>
       </SiteHeader>
 
-      <main className="mx-auto max-w-3xl px-4 py-5 sm:px-6 sm:py-6">
+      <main id="main-content" className="mx-auto max-w-3xl px-4 py-5 sm:px-6 sm:py-6">
         {loading ? (
           <div className="space-y-4" aria-hidden>
             <div className="skeleton h-5 w-24 rounded" />
@@ -122,6 +124,19 @@ export default function NewsArticlePage() {
                 <Clock3 className="h-3 w-3" />
                 {timeAgo(article.published_at)}
               </span>
+              <button
+                type="button"
+                onClick={() => toggleSave(article)}
+                aria-pressed={isSaved(article.id)}
+                className={`ml-auto inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+                  isSaved(article.id)
+                    ? 'border-accent-500/40 bg-accent-500/10 text-accent-600 dark:text-accent-400'
+                    : 'border-line bg-surface text-muted hover:border-line-strong hover:text-fg'
+                }`}
+              >
+                {isSaved(article.id) ? <BookmarkCheck className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}
+                {isSaved(article.id) ? 'Saved' : 'Save'}
+              </button>
             </div>
 
             <h1 className="mt-3 font-display text-2xl font-extrabold leading-tight tracking-tight text-fg sm:text-3xl">

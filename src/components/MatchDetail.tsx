@@ -1,10 +1,14 @@
-import { ArrowLeft, Goal, ArrowRightLeft, Calendar, Clock, Swords, BarChart3, ListOrdered } from 'lucide-react';
-import type { FormResult, Match, MatchEvent } from '../types';
+import { ArrowLeft, Goal, ArrowRightLeft, Calendar, CalendarPlus, Clock, Heart, BarChart3, ListOrdered } from 'lucide-react';
+import type { Match, MatchEvent } from '../types';
 import { sortEventsByMinute } from '../lib/api';
+import MatchHistory from './MatchHistory';
 
 interface MatchDetailProps {
   match: Match;
   onBack: () => void;
+  followedTeamIds?: string[];
+  onToggleFollow?: (team: { id: string; name: string }) => void;
+  onAddCalendar?: () => void;
 }
 
 function EventRow({
@@ -191,34 +195,6 @@ function StatRow({
   );
 }
 
-function FormChips({ results, teamName }: { results: FormResult[]; teamName: string }) {
-  if (!results || results.length === 0) return null;
-  const chipClass = (r: string) =>
-    r === 'W'
-      ? 'bg-accent-500/15 text-accent-600 dark:text-accent-400'
-      : r === 'D'
-        ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
-        : 'bg-red-500/15 text-red-500';
-  return (
-    <div className="flex w-full items-center justify-between gap-3">
-      <span className="truncate text-xs font-semibold text-muted">{teamName}</span>
-      <div className="flex flex-shrink-0 items-center gap-1.5">
-        {results.map((f, i) => (
-          <span
-            key={i}
-            title={`${f.atVs === 'at' ? '@' : 'vs '}${f.opponent || 'Unknown'}${f.score ? ` · ${f.score}` : ''}${
-              f.date ? ` · ${f.date.slice(0, 10)}` : ''
-            }`}
-            className={`flex h-6 min-w-6 items-center justify-center rounded-lg px-1.5 text-[11px] font-extrabold ${chipClass(f.result)}`}
-          >
-            {f.result || '?'}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function SectionCard({
   icon,
   title,
@@ -242,7 +218,13 @@ function SectionCard({
   );
 }
 
-export default function MatchDetail({ match, onBack }: MatchDetailProps) {
+export default function MatchDetail({
+  match,
+  onBack,
+  followedTeamIds = [],
+  onToggleFollow,
+  onAddCalendar,
+}: MatchDetailProps) {
   const homeTeam = match.home_team;
   const awayTeam = match.away_team;
   const events = sortEventsByMinute(match.events);
@@ -309,6 +291,9 @@ export default function MatchDetail({ match, onBack }: MatchDetailProps) {
             ) : (
               <>
                 <ScoreDisplay home={match.home_score} away={match.away_score} isLive={isLive} />
+                <span className="sr-only" aria-live="polite">
+                  Score: {homeTeam.name} {match.home_score}, {awayTeam.name} {match.away_score}
+                </span>
                 {isLive && (
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-red-500/25 bg-red-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-red-500">
                     <span className="relative flex h-1.5 w-1.5">
@@ -346,6 +331,46 @@ export default function MatchDetail({ match, onBack }: MatchDetailProps) {
         </div>
       </div>
 
+      {/* Team following and calendar export */}
+      {(onToggleFollow || onAddCalendar) && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {onToggleFollow && (
+            <>
+              <span className="text-[10px] font-bold uppercase tracking-wide text-subtle">Follow</span>
+              {[homeTeam, awayTeam].map((team) => {
+                const following = followedTeamIds.includes(team.id);
+                return (
+                  <button
+                    key={team.id}
+                    type="button"
+                    onClick={() => onToggleFollow({ id: team.id, name: team.name })}
+                    aria-pressed={following}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+                      following
+                        ? 'border-accent-500/40 bg-accent-500/10 text-accent-600 dark:text-accent-400'
+                        : 'border-line bg-surface text-muted hover:border-line-strong hover:text-fg'
+                    }`}
+                  >
+                    <Heart className="h-3.5 w-3.5" fill={following ? 'currentColor' : 'none'} />
+                    <span className="max-w-[120px] truncate">{team.name}</span>
+                  </button>
+                );
+              })}
+            </>
+          )}
+          {match.status === 'scheduled' && onAddCalendar && (
+            <button
+              type="button"
+              onClick={onAddCalendar}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[11px] font-semibold text-muted transition-colors hover:border-line-strong hover:text-fg"
+            >
+              <CalendarPlus className="h-3.5 w-3.5" />
+              Add to calendar
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Timeline */}
       {events.length > 0 && (
         <div className="mt-4">
@@ -368,83 +393,14 @@ export default function MatchDetail({ match, onBack }: MatchDetailProps) {
         </div>
       )}
 
-      {match.detail?.h2h &&
-        (match.detail.h2h.meetings && match.detail.h2h.meetings.length > 0 ? (
-          <div className="mt-4">
-            <SectionCard
-              icon={<Swords className="h-4 w-4 text-accent-500" />}
-              title="Head-to-head"
-              aside={match.detail.h2h.summary || undefined}
-            >
-              <ul className="divide-y divide-line/60">
-                {match.detail.h2h.meetings.map((m, idx) => {
-                  const dateStr = m.date
-                    ? new Date(m.date).toLocaleDateString('en-US', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: '2-digit',
-                      })
-                    : '';
-                  const extraStatus = m.status && !/^ft$/i.test(m.status.trim()) ? m.status : '';
-                  const title = [
-                    dateStr,
-                    m.competition,
-                    extraStatus,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ');
-                  const sideClass = (side: 'home' | 'away') =>
-                    m.winner === side ? 'font-bold text-fg' : 'text-muted';
-                  return (
-                    <li
-                      key={`${m.date}-${idx}`}
-                      title={title || undefined}
-                      className="flex items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4"
-                    >
-                      <span className="nums w-[58px] flex-shrink-0 text-[11px] text-subtle sm:w-[66px]">
-                        {dateStr}
-                      </span>
-                      <span className={`min-w-0 flex-1 truncate text-right text-[13px] ${sideClass('home')}`}>
-                        {m.home}
-                      </span>
-                      <span className="nums flex-shrink-0 rounded-lg bg-sunken px-2 py-1 text-[12px] font-bold text-fg">
-                        {m.home_score ?? '–'}
-                        <span className="px-0.5 text-subtle">–</span>
-                        {m.away_score ?? '–'}
-                      </span>
-                      {extraStatus && (
-                        <span className="hidden flex-shrink-0 text-[9px] font-bold uppercase tracking-wide text-subtle sm:inline">
-                          {extraStatus}
-                        </span>
-                      )}
-                      <span className={`min-w-0 flex-1 truncate text-[13px] ${sideClass('away')}`}>
-                        {m.away}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </SectionCard>
-          </div>
-        ) : (
-          <div className="mt-4 flex items-center justify-center gap-2 rounded-2xl border border-line bg-surface px-4 py-3">
-            <Swords className="h-3.5 w-3.5 flex-shrink-0 text-subtle" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-subtle">H2H</span>
-            <span className="truncate text-[13px] font-semibold text-fg">{match.detail.h2h.summary}</span>
-          </div>
-        ))}
-
-      {/* Last 5 form */}
-      {match.detail?.form && (match.detail.form.home.length > 0 || match.detail.form.away.length > 0) && (
-        <div className="mt-4">
-          <SectionCard icon={<ListOrdered className="h-4 w-4 text-accent-500" />} title="Last 5 form" aside="oldest → newest">
-            <div className="flex flex-col gap-3 px-4 py-3">
-              <FormChips results={match.detail.form.home} teamName={homeTeam.name} />
-              <FormChips results={match.detail.form.away} teamName={awayTeam.name} />
-            </div>
-          </SectionCard>
-        </div>
-      )}
+      <div className="mt-4">
+        <MatchHistory
+          h2h={match.detail?.h2h}
+          form={match.detail?.form}
+          homeName={homeTeam.name}
+          awayName={awayTeam.name}
+        />
+      </div>
 
       {/* Team statistics */}
       {match.detail?.stats && (

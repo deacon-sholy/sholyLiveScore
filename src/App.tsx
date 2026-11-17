@@ -7,6 +7,7 @@ import MatchPage from './pages/MatchPage';
 import DownloadPage from './pages/DownloadPage';
 import NewsPage from './pages/NewsPage';
 import NewsArticlePage from './pages/NewsArticlePage';
+import InstallPrompt from './components/InstallPrompt';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -31,6 +32,12 @@ function App() {
       </div>
 
       <ScrollToTop />
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-fg focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-canvas"
+      >
+        Skip to content
+      </a>
       <div className="flex-1">
         <Routes>
           <Route path="/" element={<HomePage />} />
@@ -45,6 +52,8 @@ function App() {
 
       {/* The footer is the last thing on the page, so the home-indicator /
           gesture bar clearance comes from `safe-b` on the wrapper above. */}
+      <InstallPrompt />
+
       <footer className="relative border-t border-line py-7 text-center">
         <p className="text-xs text-muted">
           Live data from ESPN · Live scores refresh every 5s

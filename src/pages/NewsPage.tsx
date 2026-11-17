@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertCircle, ArrowRight, Clock3, Newspaper, SearchX } from 'lucide-react';
+import { AlertCircle, ArrowRight, Bookmark, BookmarkCheck, Clock3, Newspaper, SearchX } from 'lucide-react';
 import type { NewsArticle } from '../types';
 import { fetchNews } from '../lib/api';
 import SiteHeader from '../components/SiteHeader';
+import SearchBar from '../components/SearchBar';
+import { useSavedArticles } from '../lib/useSavedArticles';
 import { applySeo, SITE } from '../lib/seo';
 import { timeAgo } from '../lib/time';
 
@@ -53,47 +55,93 @@ function Thumb({ article, className = '' }: { article: NewsArticle; className?: 
   );
 }
 
-function FeaturedArticle({ article }: { article: NewsArticle }) {
+function SaveButton({
+  saved,
+  onClick,
+}: {
+  saved: boolean;
+  onClick: () => void;
+}) {
   return (
-    <Link
-      to={`/news/${article.id}`}
-      className="group grid overflow-hidden rounded-2xl border border-line bg-surface shadow-card transition-all hover:border-line-strong hover:shadow-lift sm:grid-cols-2"
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClick();
+      }}
+      title={saved ? 'Remove from saved' : 'Save story'}
+      aria-label={saved ? 'Remove from saved stories' : 'Save story'}
+      className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-surface/90 text-muted backdrop-blur transition-colors hover:text-fg"
     >
-      <Thumb article={article} className="aspect-video sm:aspect-auto sm:h-full sm:min-h-[260px]" />
-      <div className="flex flex-col justify-center gap-3 p-4 sm:p-6">
-        <Tag label={article.league} />
-        <h2 className="font-display text-lg font-extrabold leading-snug text-fg transition-colors group-hover:text-accent-600 sm:text-xl dark:group-hover:text-accent-400">
-          {article.headline}
-        </h2>
-        {article.description && (
-          <p className="line-clamp-3 text-sm leading-relaxed text-muted">{article.description}</p>
-        )}
-        <ArticleMeta article={article} />
-      </div>
-    </Link>
+      {saved ? <BookmarkCheck className="h-4 w-4 text-accent-500" /> : <Bookmark className="h-4 w-4" />}
+    </button>
   );
 }
 
-function ArticleCard({ article }: { article: NewsArticle }) {
+function FeaturedArticle({
+  article,
+  saved,
+  onToggleSave,
+}: {
+  article: NewsArticle;
+  saved: boolean;
+  onToggleSave: (article: NewsArticle) => void;
+}) {
   return (
-    <Link
-      to={`/news/${article.id}`}
-      className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-card transition-all hover:-translate-y-0.5 hover:border-line-strong hover:shadow-lift"
-    >
-      <Thumb article={article} className="aspect-video" />
-      <div className="flex flex-1 flex-col gap-2 p-4">
-        <Tag label={article.league} />
-        <h3 className="line-clamp-2 font-display text-[15px] font-bold leading-snug text-fg transition-colors group-hover:text-accent-600 dark:group-hover:text-accent-400">
-          {article.headline}
-        </h3>
-        {article.description && (
-          <p className="line-clamp-2 text-xs leading-relaxed text-muted">{article.description}</p>
-        )}
-        <div className="mt-auto pt-2">
+    <div className="group relative">
+      <Link
+        to={`/news/${article.id}`}
+        className="grid h-full overflow-hidden rounded-2xl border border-line bg-surface shadow-card transition-all hover:border-line-strong hover:shadow-lift sm:grid-cols-2"
+      >
+        <Thumb article={article} className="aspect-video sm:aspect-auto sm:h-full sm:min-h-[260px]" />
+        <div className="flex flex-col justify-center gap-3 p-4 sm:p-6">
+          <Tag label={article.league} />
+          <h2 className="font-display text-lg font-extrabold leading-snug text-fg transition-colors group-hover:text-accent-600 sm:text-xl dark:group-hover:text-accent-400">
+            {article.headline}
+          </h2>
+          {article.description && (
+            <p className="line-clamp-3 text-sm leading-relaxed text-muted">{article.description}</p>
+          )}
           <ArticleMeta article={article} />
         </div>
-      </div>
-    </Link>
+      </Link>
+      <SaveButton saved={saved} onClick={() => onToggleSave(article)} />
+    </div>
+  );
+}
+
+function ArticleCard({
+  article,
+  saved,
+  onToggleSave,
+}: {
+  article: NewsArticle;
+  saved: boolean;
+  onToggleSave: (article: NewsArticle) => void;
+}) {
+  return (
+    <div className="group relative">
+      <Link
+        to={`/news/${article.id}`}
+        className="flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-card transition-all hover:-translate-y-0.5 hover:border-line-strong hover:shadow-lift"
+      >
+        <Thumb article={article} className="aspect-video" />
+        <div className="flex flex-1 flex-col gap-2 p-4">
+          <Tag label={article.league} />
+          <h3 className="line-clamp-2 font-display text-[15px] font-bold leading-snug text-fg transition-colors group-hover:text-accent-600 dark:group-hover:text-accent-400">
+            {article.headline}
+          </h3>
+          {article.description && (
+            <p className="line-clamp-2 text-xs leading-relaxed text-muted">{article.description}</p>
+          )}
+          <div className="mt-auto pt-2">
+            <ArticleMeta article={article} />
+          </div>
+        </div>
+      </Link>
+      <SaveButton saved={saved} onClick={() => onToggleSave(article)} />
+    </div>
   );
 }
 
@@ -116,6 +164,8 @@ export default function NewsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
+  const { saved, toggleSave, isSaved } = useSavedArticles();
   const inFlight = useRef(false);
 
   const load = useCallback(async (manual = false) => {
@@ -170,14 +220,27 @@ export default function NewsPage() {
       .map(([label]) => label);
   }, [articles]);
 
-  useEffect(() => {
-    if (filter !== 'all' && !tags.includes(filter)) setFilter('all');
-  }, [filter, tags]);
-
-  const visible = useMemo(
-    () => (filter === 'all' ? articles : articles.filter((a) => a.league === filter)),
-    [articles, filter],
+  const tabs = useMemo(
+    () => ['all', ...(saved.length > 0 ? ['saved'] : []), ...tags],
+    [tags, saved.length],
   );
+
+  useEffect(() => {
+    if (filter === 'saved' && saved.length === 0) setFilter('all');
+    else if (filter !== 'all' && filter !== 'saved' && !tags.includes(filter)) setFilter('all');
+  }, [filter, tags, saved.length]);
+
+  const visible = useMemo(() => {
+    const base = filter === 'saved' ? saved : filter === 'all' ? articles : articles.filter((a) => a.league === filter);
+    const q = search.trim().toLowerCase();
+    if (!q) return base;
+    return base.filter(
+      (a) =>
+        a.headline.toLowerCase().includes(q) ||
+        (a.description ?? '').toLowerCase().includes(q) ||
+        (a.league ?? '').toLowerCase().includes(q),
+    );
+  }, [articles, saved, filter, search]);
   const [featured, ...rest] = visible;
 
   return (
@@ -195,7 +258,7 @@ export default function NewsPage() {
         </div>
       </SiteHeader>
 
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+      <main id="main-content" className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <div className="mb-5">
           <h1 className="font-display text-xl font-extrabold tracking-tight text-fg sm:text-2xl">
             Latest football news
@@ -205,9 +268,13 @@ export default function NewsPage() {
           </p>
         </div>
 
-        {tags.length > 0 && (
+        <div className="mb-3">
+          <SearchBar value={search} onChange={setSearch} />
+        </div>
+
+        {tabs.length > 1 && (
           <div className="mb-5 flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-            {['all', ...tags].map((tag) => {
+            {tabs.map((tag) => {
               const isActive = filter === tag;
               return (
                 <button
@@ -220,7 +287,7 @@ export default function NewsPage() {
                       : 'border border-line bg-surface text-muted hover:border-line-strong hover:text-fg'
                   }`}
                 >
-                  {tag === 'all' ? 'All news' : tag}
+                  {tag === 'all' ? 'All news' : tag === 'saved' ? 'Saved' : tag}
                 </button>
               );
             })}
@@ -250,9 +317,25 @@ export default function NewsPage() {
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-line bg-surface">
               <SearchX className="h-6 w-6 text-subtle" />
             </div>
-            <p className="text-sm font-semibold text-fg">No stories in this category</p>
+            <p className="text-sm font-semibold text-fg">
+              {search
+                ? 'No stories match your search'
+                : filter === 'saved'
+                  ? 'No saved stories yet'
+                  : 'No stories in this category'}
+            </p>
+            <p className="text-xs text-muted">
+              {search
+                ? 'Try a different headline or team'
+                : filter === 'saved'
+                  ? 'Tap the bookmark on any article to keep it here'
+                  : 'Try another tag'}
+            </p>
             <button
-              onClick={() => setFilter('all')}
+              onClick={() => {
+                setFilter('all');
+                setSearch('');
+              }}
               className="text-xs font-semibold text-accent-600 hover:underline dark:text-accent-400"
             >
               Show all news
@@ -260,11 +343,22 @@ export default function NewsPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {featured && <FeaturedArticle article={featured} />}
+            {featured && (
+              <FeaturedArticle
+                article={featured}
+                saved={isSaved(featured.id)}
+                onToggleSave={toggleSave}
+              />
+            )}
             {rest.length > 0 && (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {rest.map((article) => (
-                  <ArticleCard key={article.id} article={article} />
+                  <ArticleCard
+                    key={article.id}
+                    article={article}
+                    saved={isSaved(article.id)}
+                    onToggleSave={toggleSave}
+                  />
                 ))}
               </div>
             )}

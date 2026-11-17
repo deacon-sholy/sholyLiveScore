@@ -1,9 +1,10 @@
-const CACHE = 'sholy-livescore-v4';
-const ASSET_CACHE = 'sholy-livescore-assets-v4';
+const CACHE = 'sholy-livescore-v5';
+const ASSET_CACHE = 'sholy-livescore-assets-v5';
+const SHELL = '/';
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(['/'])).then(() => self.skipWaiting())
+    caches.open(CACHE).then((cache) => cache.addAll([SHELL])).then(() => self.skipWaiting())
   );
 });
 
@@ -12,6 +13,29 @@ self.addEventListener('activate', (e) => {
     caches.keys()
       .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== ASSET_CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
+  );
+});
+
+// Tapping a goal alert should bring the app forward on the exact match page.
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const raw = (e.notification.data && e.notification.data.url) || SHELL;
+  // Never let a notification navigate off-site, even if its data is tampered with.
+  const target = new URL(raw, self.location.origin);
+  const url = target.origin === self.location.origin ? target.href : SHELL;
+
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ('focus' in client) {
+          if (typeof client.navigate === 'function') {
+            return client.navigate(url).then((navigated) => (navigated ? navigated.focus() : client.focus()));
+          }
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow ? self.clients.openWindow(url) : undefined;
+    })
   );
 });
 
@@ -30,7 +54,10 @@ self.addEventListener('fetch', (e) => {
           caches.open(CACHE).then((cache) => cache.put(e.request, clone));
           return res;
         })
-        .catch(() => caches.match(e.request))
+        .catch(async () => {
+          // Exact route first, then the cached app shell so any SPA route works offline.
+          return (await caches.match(e.request)) || (await caches.match(SHELL)) || Response.error();
+        })
     );
     return;
   }
