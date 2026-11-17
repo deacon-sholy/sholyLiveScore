@@ -108,18 +108,47 @@ export interface H2hRecord {
   meetings?: H2hMeeting[];
 }
 
+export interface LineupPlayer {
+  id: string;
+  name: string;
+  short_name: string;
+  jersey: string | null;
+  position: string;
+  position_group: 'goalkeeper' | 'defender' | 'midfielder' | 'forward';
+  starter: boolean;
+  subbed_in: boolean;
+  subbed_out: boolean;
+  goals: number;
+  assists: number;
+  yellow_cards: number;
+  red_cards: number;
+  saves: number;
+}
+
+export interface TeamLineup {
+  formation: string | null;
+  players: LineupPlayer[];
+}
+
+export interface MatchLineups {
+  home: TeamLineup | null;
+  away: TeamLineup | null;
+}
+
 export interface MatchDetailData {
   match?: Match | null;
   events: MatchEvent[];
   stats?: { home: TeamStats; away: TeamStats } | null;
   form?: { home: FormResult[]; away: FormResult[] } | null;
   h2h?: H2hRecord | null;
+  lineups?: MatchLineups | null;
 }
 
 export interface MatchDetail {
   stats?: { home: TeamStats; away: TeamStats } | null;
   form?: { home: FormResult[]; away: FormResult[] } | null;
   h2h?: H2hRecord | null;
+  lineups?: MatchLineups | null;
 }
 
 export interface NewsArticle {

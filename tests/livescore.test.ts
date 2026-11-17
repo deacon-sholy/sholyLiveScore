@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getLeague } from '../src/lib/leagues';
 import {
   buildMatchDetail,
+  extractLineups,
   mapEvent,
   mapStatus,
   parseMinute,
@@ -206,5 +207,71 @@ describe('match detail', () => {
     expect(detail.events[0].player_name).toBe('Real Scorer');
     expect(detail.stats?.home).toMatchObject({ possession: 60, shots: 14 });
     expect(detail.stats?.away.shots).toBeNull();
+  });
+});
+
+describe('lineups', () => {
+  const starter = (name: string, position: string, extra = {}) => ({
+    starter: true,
+    jersey: '7',
+    position: { displayName: position, abbreviation: position.slice(0, 2) },
+    athlete: { id: name, displayName: name, shortName: name },
+    stats: [{ name: 'totalGoals', displayValue: '1' }],
+    ...extra,
+  });
+
+  it('maps starters, formation and per-player stats, ignoring pre-match placeholders', () => {
+    const lineups = extractLineups({
+      rosters: [
+        {
+          homeAway: 'home',
+          formation: '4-2-3-1',
+          roster: [
+            starter('Keeper', 'Goalkeeper'),
+            starter('Defender', 'Center Right Defender'),
+            starter('Mid', 'Central Midfielder'),
+            starter('Striker', 'Forward', { subbedOut: true }),
+            starter('Winger', 'Right Midfielder'),
+            starter('Back', 'Left Back'),
+            starter('Anchor', 'Defensive Midfielder'),
+            {
+              starter: false,
+              jersey: '9',
+              subbedIn: true,
+              position: { displayName: 'Forward' },
+              athlete: { id: 'Sub', displayName: 'Sub', shortName: 'Sub' },
+              stats: [],
+            },
+          ],
+        },
+        {
+          homeAway: 'away',
+          roster: [{ starter: false, athlete: { displayName: 'Placeholder' } }],
+        },
+      ],
+    });
+
+    expect(lineups).not.toBeNull();
+    expect(lineups?.home?.formation).toBe('4-2-3-1');
+    expect(lineups?.home?.players).toHaveLength(8);
+    expect(lineups?.home?.players.find((p) => p.name === 'Keeper')).toMatchObject({
+      position_group: 'goalkeeper',
+      goals: 1,
+    });
+    expect(lineups?.home?.players.find((p) => p.name === 'Defender')?.position_group).toBe('defender');
+    expect(lineups?.home?.players.find((p) => p.name === 'Striker')?.subbed_out).toBe(true);
+    expect(lineups?.home?.players.find((p) => p.name === 'Sub')).toMatchObject({
+      starter: false,
+      subbed_in: true,
+    });
+    expect(lineups?.away).toBeNull();
+  });
+
+  it('returns null when neither side has a real XI', () => {
+    expect(
+      extractLineups({
+        rosters: [{ homeAway: 'home', roster: [{ starter: false, athlete: { displayName: 'Placeholder' } }] }],
+      }),
+    ).toBeNull();
   });
 });

@@ -2,6 +2,7 @@ import { ArrowLeft, Goal, ArrowRightLeft, Calendar, CalendarPlus, Clock, Heart, 
 import type { Match, MatchEvent } from '../types';
 import { sortEventsByMinute } from '../lib/api';
 import MatchHistory from './MatchHistory';
+import MatchLineups from './MatchLineups';
 
 interface MatchDetailProps {
   match: Match;
@@ -392,6 +393,14 @@ export default function MatchDetail({
           </SectionCard>
         </div>
       )}
+
+      <div className="mt-4">
+        <MatchLineups
+          lineups={match.detail?.lineups}
+          homeName={homeTeam.name}
+          awayName={awayTeam.name}
+        />
+      </div>
 
       <div className="mt-4">
         <MatchHistory

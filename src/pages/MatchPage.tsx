@@ -35,7 +35,15 @@ export default function MatchPage() {
         if (!alive) return;
         setMatch(
           detail.match
-            ? { ...detail.match, detail: { stats: detail.stats, form: detail.form, h2h: detail.h2h } }
+            ? {
+                ...detail.match,
+                detail: {
+                  stats: detail.stats,
+                  form: detail.form,
+                  h2h: detail.h2h,
+                  lineups: detail.lineups,
+                },
+              }
             : null,
         );
       } catch (err) {

@@ -592,12 +592,31 @@ interface EspnSummaryBoxscore {
   }>;
 }
 
+interface EspnRosterPlayer {
+  starter?: boolean;
+  jersey?: string;
+  formationPlace?: string;
+  subbedIn?: boolean;
+  subbedOut?: boolean;
+  position?: { name?: string; displayName?: string; abbreviation?: string };
+  athlete?: { id?: string; displayName?: string; fullName?: string; shortName?: string };
+  stats?: Array<{ name?: string; displayValue?: string }>;
+}
+
+interface EspnRoster {
+  homeAway?: string;
+  team?: EspnTeamRef;
+  formation?: string;
+  roster?: EspnRosterPlayer[];
+}
+
 export interface EspnSummary {
   header?: {
     competitions?: EspnCompetition[];
     league?: { logos?: Array<{ href: string }> };
   };
   boxscore?: EspnSummaryBoxscore;
+  rosters?: EspnRoster[];
   keyEvents?: EspnDetail[];
   lastFiveGames?: Array<{
     team?: EspnTeamRef;
@@ -662,10 +681,92 @@ interface H2hMeeting {
   competition: string | null;
 }
 
+interface LineupPlayer {
+  id: string;
+  name: string;
+  short_name: string;
+  jersey: string | null;
+  position: string;
+  position_group: 'goalkeeper' | 'defender' | 'midfielder' | 'forward';
+  starter: boolean;
+  subbed_in: boolean;
+  subbed_out: boolean;
+  goals: number;
+  assists: number;
+  yellow_cards: number;
+  red_cards: number;
+  saves: number;
+}
+
+interface TeamLineup {
+  formation: string | null;
+  players: LineupPlayer[];
+}
+
+interface MatchLineups {
+  home: TeamLineup | null;
+  away: TeamLineup | null;
+}
+
 interface MatchExtras {
   stats: { home: TeamStats; away: TeamStats } | null;
   form: { home: FormResult[]; away: FormResult[] } | null;
   h2h: { title: string; summary: string; meetings: H2hMeeting[] } | null;
+  lineups: MatchLineups | null;
+}
+
+function lineupGroup(position: string): LineupPlayer['position_group'] {
+  const p = position.toLowerCase();
+  if (/goalkeep|^g$/.test(p)) return 'goalkeeper';
+  if (/defend|back|^cb|^cd|^lb|^rb|^wb/.test(p)) return 'defender';
+  if (/midfield|^cm|^lm|^rm|^am|^dm/.test(p)) return 'midfielder';
+  return 'forward';
+}
+
+function lineupStat(player: EspnRosterPlayer, key: string): number {
+  const stat = player.stats?.find((s) => s.name === key);
+  const value = Number(stat?.displayValue);
+  return Number.isFinite(value) ? value : 0;
+}
+
+/** ESPN only fills rosters once a match is live/finished; pre-match they hold a
+ *  single nameless placeholder. Return null unless at least one side has a real XI. */
+export function extractLineups(json: EspnSummary): MatchLineups | null {
+  const build = (side: 'home' | 'away'): TeamLineup | null => {
+    const roster = json.rosters?.find((r) => r.homeAway === side);
+    if (!roster || !Array.isArray(roster.roster)) return null;
+    const starters = roster.roster.filter((p) => p.starter);
+    if (starters.length < 7) return null;
+
+    const players: LineupPlayer[] = roster.roster
+      .map((p) => {
+        const position =
+          p.position?.displayName || p.position?.name || p.position?.abbreviation || '';
+        return {
+          id: p.athlete?.id || p.athlete?.displayName || '',
+          name: p.athlete?.displayName || p.athlete?.fullName || p.athlete?.shortName || 'Unknown',
+          short_name: p.athlete?.shortName || p.athlete?.displayName || '',
+          jersey: p.jersey || null,
+          position,
+          position_group: lineupGroup(position),
+          starter: Boolean(p.starter),
+          subbed_in: Boolean(p.subbedIn),
+          subbed_out: Boolean(p.subbedOut),
+          goals: lineupStat(p, 'totalGoals'),
+          assists: lineupStat(p, 'goalAssists'),
+          yellow_cards: lineupStat(p, 'yellowCards'),
+          red_cards: lineupStat(p, 'redCards'),
+          saves: lineupStat(p, 'saves'),
+        };
+      })
+      .sort((a, b) => Number(b.starter) - Number(a.starter) || a.name.localeCompare(b.name));
+
+    return { formation: roster.formation || null, players };
+  };
+
+  const home = build('home');
+  const away = build('away');
+  return home || away ? { home, away } : null;
 }
 
 export function statNumber(stats: Record<string, string>, key: string): number | null {
@@ -824,6 +925,7 @@ function extractMatchExtras(json: EspnSummary, homeName: string, awayName: strin
     stats: extractTeamStats(json),
     form: extractForm(json),
     h2h: extractH2h(json, homeName, awayName),
+    lineups: extractLineups(json),
   };
 }
 
@@ -834,6 +936,7 @@ interface MatchDetailPayload {
   stats: MatchExtras['stats'];
   form: MatchExtras['form'];
   h2h: MatchExtras['h2h'];
+  lineups: MatchExtras['lineups'];
 }
 
 export function buildMatchDetail(league: LeagueDef, json: EspnSummary): MatchDetailPayload {

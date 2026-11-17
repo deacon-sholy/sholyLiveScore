@@ -19,6 +19,7 @@ interface ApiResponse {
   stats?: MatchDetailData['stats'];
   form?: MatchDetailData['form'];
   h2h?: MatchDetailData['h2h'];
+  lineups?: MatchDetailData['lineups'];
   error?: string;
 }
 
@@ -98,6 +99,7 @@ export async function fetchMatchDetail(
     stats: data.stats ?? undefined,
     form: data.form ?? undefined,
     h2h: data.h2h ?? undefined,
+    lineups: data.lineups ?? undefined,
   };
 }
 
