@@ -622,7 +622,11 @@ export interface EspnSummary {
     team?: EspnTeamRef;
     events?: Array<{
       gameResult?: string;
-      opponent?: string;
+      // ESPN sends a bare string for some competitions and a team object for others.
+      opponent?:
+        | string
+        | { displayName?: string; shortDisplayName?: string; name?: string; abbreviation?: string }
+        | null;
       score?: string;
       atVs?: string;
       gameDate?: string;
@@ -827,6 +831,21 @@ function extractTeamStats(json: EspnSummary): MatchExtras['stats'] {
   return { home: homeStats, away: awayStats };
 }
 
+/** Opponents arrive as a string on some feeds and as a team object on others. */
+function opponentName(
+  opponent: NonNullable<NonNullable<EspnSummary['lastFiveGames']>[number]['events']>[number]['opponent'],
+): string {
+  if (!opponent) return '';
+  if (typeof opponent === 'string') return opponent;
+  return (
+    opponent.displayName ||
+    opponent.shortDisplayName ||
+    opponent.name ||
+    opponent.abbreviation ||
+    ''
+  );
+}
+
 function extractForm(json: EspnSummary): MatchExtras['form'] {
   if (!Array.isArray(json.lastFiveGames) || json.lastFiveGames.length === 0) return null;
   const pick = (teamId: string | undefined): FormResult[] => {
@@ -836,7 +855,7 @@ function extractForm(json: EspnSummary): MatchExtras['form'] {
       .slice(0, 5)
       .map((e) => ({
         result: e.gameResult ?? '',
-        opponent: e.opponent ?? '',
+        opponent: opponentName(e.opponent),
         score: e.score ?? '',
         atVs: e.atVs ?? '',
         date: e.gameDate ?? '',

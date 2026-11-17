@@ -275,3 +275,44 @@ describe('lineups', () => {
     ).toBeNull();
   });
 });
+
+describe('form', () => {
+  it('normalises object-shaped opponents to plain names', () => {
+    const detail = buildMatchDetail(league, {
+      header: {
+        competitions: [
+          {
+            competitors: [
+              { homeAway: 'home', team: { id: '1', displayName: 'Home FC' } },
+              { homeAway: 'away', team: { id: '2', displayName: 'Away FC' } },
+            ],
+          },
+        ],
+      },
+      lastFiveGames: [
+        {
+          team: { id: '1', displayName: 'Home FC' },
+          events: [
+            {
+              gameResult: 'D',
+              opponent: { displayName: 'Jablonec', abbreviation: 'JABL' },
+              score: '0-0',
+              atVs: '@',
+              gameDate: '2026-10-22T16:45Z',
+            },
+            {
+              gameResult: 'W',
+              opponent: 'Rangers',
+              score: '2-1',
+              atVs: 'vs',
+              gameDate: '2026-10-25T16:45Z',
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(detail.form?.home.map((f) => f.opponent)).toEqual(['Jablonec', 'Rangers']);
+    expect(typeof detail.form?.home[0].opponent).toBe('string');
+  });
+});
